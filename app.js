@@ -5,8 +5,9 @@
 
 // ===== Optional: Supabase (global leaderboard) =============================
 // If left blank, the app falls back to localStorage (device‑only leaderboard).
-export const SUPABASE_URL = '';
-export const SUPABASE_ANON_KEY = '';
+export const SUPABASE_URL = 'https://tralparxinmltofaiclh.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRyYWxwYXJ4aW5tbHRvZmFpY2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5MTcxOTAsImV4cCI6MjA3MDQ5MzE5MH0.Y0wV1-nHtFihiRw5xokkNYa9dxCRfMYhlMQpTm_p4Gw';
+
 
 let supabase = null;
 if (SUPABASE_URL && SUPABASE_ANON_KEY) {
