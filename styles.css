@@ -1,4 +1,4 @@
-```css
+
 :root{
   --bg:#0b0f14; --panel:#111822; --muted:#9fb0c5; --text:#e9f1fb;
   --y:#facc15; --g:#22c55e; --b:#3b82f6; --p:#9333ea;
@@ -55,4 +55,4 @@ input{background:#0f1724; color:var(--text); border:1px solid #2a3952; border-ra
 .muted{color:var(--muted); font-size:13px}
 
 @media (max-width:800px){ .leaderboard{grid-template-columns:1fr} }
-```
+
