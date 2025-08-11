@@ -151,51 +151,102 @@ elGateGo.addEventListener('click', async ()=>{
 
 // Leaderboard
 function computeScore(strikes){ return 100 - (20 * clamp(strikes,0,4)); }
-async function submitScore({ score, strikes, durationMs, mode }){
-  const player = state.player; if(!player) return;
-  if(!supabase){
+async function submitScore({ score, strikes, durationMs, mode }) {
+  const player = state.player; if (!player) return;
+  const row = { player_id: player.id, name: player.name, date: todayISO(), score, mode, strikes, duration_ms: durationMs, created_at: new Date().toISOString() };
+
+  // Local writer
+  const saveLocal = () => {
     const list = storage.get('scores', []);
-    list.push({ player_id: player.id, name: player.name, date: todayISO(), score, mode, strikes, duration_ms: durationMs, created_at: new Date().toISOString() });
-    storage.set('scores', list);
-    try{ localStorage.setItem('__scores_ping__', String(Date.now())); }catch{}
-    return;
+    list.push(row);
+    try { storage.set('scores', list); localStorage.setItem('__scores_ping__', String(Date.now())); } catch {}
+  };
+
+  if (!supabase) { saveLocal(); return; }
+
+  try {
+    // Guard against old non-UUID local players
+    if (!/^[0-9a-fA-F-]{36}$/.test(String(player.id))) {
+      // Re-upsert to get a real UUID from Supabase
+      const { data, error } = await supabase.from('players').upsert({ name: player.name }, { onConflict: 'name' }).select().single();
+      if (error) throw error;
+      state.player = data; row.player_id = data.id;
+      storage.set('player', data);
+    }
+
+    const { error: insErr } = await supabase.from('scores').insert({
+      player_id: row.player_id, date: row.date, score: row.score, mode: row.mode, strikes: row.strikes, duration_ms: row.duration_ms
+    });
+    if (insErr) throw insErr;
+  } catch (err) {
+    console.warn('submitScore error (falling back to local):', err);
+    toast('Couldn’t save to cloud — saved locally instead.');
+    saveLocal();
   }
-  try{
-    const { error } = await supabase.from('scores').insert({ player_id: player.id, date: todayISO(), score, mode, strikes, duration_ms: durationMs });
-    if(error) throw error;
-  }catch(err){ console.warn('submitScore error:', err); }
 }
-async function loadLeaderboards(){
-  if(!supabase){
+function aggregateScores(rows) {
+  // rows can be from local (have .name) or supabase view (have .name)
+  const byId = new Map(); // key: player_id or name if missing
+  for (const r of rows) {
+    const key = r.player_id || `name:${r.name}`;
+    if (!byId.has(key)) byId.set(key, { name: r.name, player_id: r.player_id || null, total: 0, games: 0, best: Infinity });
+    const agg = byId.get(key);
+    agg.total += Number(r.score) || 0;
+    agg.games += 1;
+    if (typeof r.duration_ms === 'number') agg.best = Math.min(agg.best, r.duration_ms);
+  }
+  return Array.from(byId.values())
+    .map(x => ({ ...x, best: isFinite(x.best) ? x.best : null }))
+    .sort((a,b) => (b.total - a.total) || ((a.best ?? 9e15) - (b.best ?? 9e15)));
+}
+
+async function loadLeaderboards() {
+  if (!supabase) {
     const scores = storage.get('scores', []);
     const today = todayISO();
-    const todayList = scores.filter(s=>s.date===today).sort((a,b)=> b.score-a.score || a.duration_ms-b.duration_ms).slice(0,10);
-    const allList = scores.slice().sort((a,b)=> b.score-a.score || a.duration_ms-b.duration_ms).slice(0,20);
-    renderLeaderboard(todayList, allList); return;
+    const todayAgg = aggregateScores(scores.filter(s => s.date === today)).slice(0, 10);
+    const allAgg   = aggregateScores(scores).slice(0, 20);
+    renderLeaderboard(todayAgg, allAgg);
+    return;
   }
-  try{
-    const { data:todayData, error:err1 } = await supabase.from('scores_with_names')
-      .select('*').eq('date', todayISO())
-      .order('score', { ascending:false }).order('duration_ms', { ascending:true }).limit(10);
-    if(err1) throw err1;
-    const { data:allData, error:err2 } = await supabase.from('scores_with_names')
-      .select('*').order('score', { ascending:false }).order('duration_ms', { ascending:true }).limit(20);
-    if(err2) throw err2;
-    renderLeaderboard(todayData||[], allData||[]);
-  }catch(err){ console.warn('loadLeaderboards error:', err); renderLeaderboard([], []); }
+  try {
+    // Pull enough rows to aggregate meaningfully
+    const { data: todayRows, error: e1 } = await supabase
+      .from('scores_with_names')
+      .select('player_id,name,score,duration_ms,date')
+      .eq('date', todayISO())
+      .limit(1000);
+    if (e1) throw e1;
+
+    const { data: allRows, error: e2 } = await supabase
+      .from('scores_with_names')
+      .select('player_id,name,score,duration_ms,date')
+      .limit(2000);
+    if (e2) throw e2;
+
+    const todayAgg = aggregateScores(todayRows || []).slice(0, 10);
+    const allAgg   = aggregateScores(allRows  || []).slice(0, 20);
+    renderLeaderboard(todayAgg, allAgg);
+  } catch (err) {
+    console.warn('loadLeaderboards error:', err);
+    renderLeaderboard([], []);
+  }
+}
+
+function liRow(row){
+  const name = row.name || '—';
+  const parts = [`${row.total ?? row.score} pts`];
+  if (row.games != null) parts.push(`${row.games} game${row.games===1?'':'s'}`);
+  if (row.best != null)  parts.push(`best ${Math.round(row.best/1000)}s`);
+  return `<li><span class="lb-name">${escapeHtml(name)}</span><span class="lb-meta">${parts.join(' · ')}</span></li>`;
 }
 function renderLeaderboard(todayList, allList){
   elLbToday.innerHTML = todayList.map(liRow).join('');
-  elLbAll.innerHTML = allList.map(liRow).join('');
+  elLbAll.innerHTML   = allList.map(liRow).join('');
   elLbTodayEmpty.hidden = todayList.length>0;
-  elLbAllEmpty.hidden = allList.length>0;
+  elLbAllEmpty.hidden   = allList.length>0;
 }
-function liRow(row){
-  const name = row.name || (row.player?.name) || '—';
-  const secs = row.duration_ms != null ? Math.round(row.duration_ms/1000) : null;
-  const meta = [ `${row.score} pts`, secs!=null? `${secs}s` : null, row.mode? String(row.mode).toUpperCase():null ].filter(Boolean).join(' · ');
-  return `<li><span class="lb-name">${escapeHtml(name)}</span><span class="lb-meta">${meta}</span></li>`;
-}
+
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
 function startLiveUpdates(){
   if(supabase){
