@@ -46,13 +46,12 @@ button.secondary{background:#152033; border-color:#233145}
 .lb-meta{color:var(--muted); font-size:12px}
 .lb-empty{color:var(--muted); font-size:13px; padding:8px 12px}
 
-/* Modal */
-.modal{position:fixed; inset:0; background:rgba(0,0,0,.45); display:grid; place-items:center}
-.modal[hidden]{display:none}
-.modal-card{width:min(440px,90vw); background:#121a26; border:1px solid #2a3952; border-radius:16px; padding:18px}
-.modal-card h2{margin:0 0 6px}
+/* Player gate */
+.gate{position:fixed; inset:0; z-index:1000; display:grid; place-items:center; background:rgba(8,11,17,.6); backdrop-filter:blur(2px)}
+.gate-card{width:min(480px, 92vw); background:#121a26; border:1px solid #2a3952; border-radius:16px; padding:18px}
+.gate-card h2{margin:0 0 6px}
 .field{display:flex; flex-direction:column; gap:6px; margin:12px 0}
-input{background:#0f1724; color:var(--text); border:1px solid #2a3952; border-radius:10px; padding:10px 12px}
+select, input{background:#0f1724; color:var(--text); border:1px solid #2a3952; border-radius:10px; padding:10px 12px}
 .row{display:flex; gap:8px; justify-content:flex-end}
 .muted{color:var(--muted); font-size:13px}
 
