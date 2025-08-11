@@ -80,7 +80,7 @@ async function upsertPlayer(name){
   if(!supabase){
     let players = storage.get('players', []);
     let p = players.find(x=>x.name.toLowerCase()===name.toLowerCase());
-    if(!p){ p = { id: crypto.randomUUID(), name }; players.push(p); storage.set('players', players); }
+    if(!p){ p = { id: (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())), name }; players.push(p); storage.set('players', players); }
     storage.set('player', p); return p;
   }
   try{
@@ -90,6 +90,12 @@ async function upsertPlayer(name){
 }
 
 async function refreshPlayers(){ playersCache = await fetchPlayers(); }
+
+function validateGate(){
+  const val = elSelect.value;
+  const ok = (val && val !== '__add__') || (val==='__add__' && elNewInput.value.trim().length>0);
+  elGateGo.disabled = !ok;
+}
 
 async function populatePlayerSelect(){
   await refreshPlayers();
@@ -107,19 +113,53 @@ async function populatePlayerSelect(){
   else { elNewField.hidden = (elSelect.value !== '__add__'); }
 }
 
-function openGate(){ elGate.hidden=false; populatePlayerSelect(); }
-function closeGate(){ elGate.hidden=true; }
+function openGate(){
+  elGate.hidden = false;
+  elGate.setAttribute('aria-hidden','false');
+  document.body.classList.add('no-scroll');
+  populatePlayerSelect().then(()=>validateGate());
+}
+function closeGate(){
+  elGate.hidden = true;
+  elGate.setAttribute('aria-hidden','true');
+  document.body.classList.remove('no-scroll');
+  elGate.style.display = 'none';
+}
 
 elSelect.addEventListener('change', ()=>{
   const add = elSelect.value==='__add__';
   elNewField.hidden = !add; if(add) elNewInput.focus();
+  validateGate();
+});
+// keep button state in sync while typing a new name
+elNewInput.addEventListener('input', ()=>validateGate());
 });
 
 elGateGo.addEventListener('click', async ()=>{
+  if(elGateGo.disabled) return; // prevent double submits
+  elGateGo.disabled = true;
+
   const val = elSelect.value;
   let player = null;
   if(val==='__add__'){
     const name = elNewInput.value.trim();
+    if(!name){ elNewInput.focus(); elGateGo.disabled=false; return; }
+    player = await upsertPlayer(name);
+    await refreshPlayers();
+  } else {
+    player = getPlayerById(val);
+    if(player) storage.set('player', player);
+  }
+  if(!player){ elGateGo.disabled=false; return; }
+  state.player = player;
+  closeGate();
+  await loadLeaderboards();
+  toast(`Hello, ${player.name}!`);
+  newGame();
+  elGateGo.disabled = false;
+});
+// Allow Enter key to submit when typing a new name
+elNewInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ elGateGo.click(); } });
     if(!name){ elNewInput.focus(); return; }
     player = await upsertPlayer(name);
     await refreshPlayers();
