@@ -19,6 +19,7 @@
           <span>Daily puzzle</span>
         </label>
         <button id="btn-change-player" class="secondary" aria-label="Change player">Change name</button>
+        <a href="#leaderboard" class="secondary btn-link" aria-label="Jump to leaderboard">Leaderboard ↓</a>
       </div>
     </header>
 
@@ -37,12 +38,19 @@
 
     <section id="leaderboard" aria-label="Leaderboard" class="leaderboard">
       <div class="board">
-        <h2>Today</h2>
+        <div class="board-head">
+          <h2>Today <small id="today-note">(UTC)</small></h2>
+          <button id="lb-refresh" class="secondary" aria-label="Refresh leaderboard">Refresh</button>
+        </div>
         <ol id="lb-today" class="lb-list" start="1"></ol>
+        <div id="lb-today-empty" class="lb-empty" hidden>No scores yet today.</div>
       </div>
       <div class="board">
-        <h2>All‑time</h2>
+        <div class="board-head">
+          <h2>All‑time</h2>
+        </div>
         <ol id="lb-alltime" class="lb-list" start="1"></ol>
+        <div id="lb-all-empty" class="lb-empty" hidden>No scores yet.</div>
       </div>
     </section>
 
