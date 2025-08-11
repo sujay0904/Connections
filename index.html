@@ -57,21 +57,25 @@
     <p class="footer">Tip: Toggle <em>Daily puzzle</em> to sync a seed so everyone gets the same board for the day (UTC). New Game still re‑seeds. Scores = <code>100 − (20 × strikes)</code>; only submitted on a full solve.</p>
   </div>
 
-  <!-- Player modal -->
-  <div class="modal" id="player-modal" role="dialog" aria-modal="true" aria-labelledby="pm-title" hidden>
-    <div class="modal-card">
-      <h2 id="pm-title">Who’s playing?</h2>
-      <p class="muted">Pick your name or type a new one. We’ll remember it on this device.</p>
-      <label class="field">Name
-        <input id="player-name" list="name-list" placeholder="e.g., Simran" maxlength="24" />
-        <datalist id="name-list"></datalist>
+  <!-- Player Gate (blocks the app until a player is chosen) -->
+  <section class="gate" id="player-gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+    <div class="gate-card">
+      <h2 id="gate-title">Choose your name</h2>
+      <p class="muted">Select an existing player or add a new one.</p>
+
+      <label class="field">Player
+        <select id="player-select" aria-label="Select player"></select>
       </label>
+
+      <label class="field" id="new-name-field" hidden>New name
+        <input id="new-player-name" placeholder="e.g., Simran" maxlength="24" aria-label="New player name" />
+      </label>
+
       <div class="row">
-        <button id="pm-save" aria-label="Save name">Let’s play</button>
-        <button id="pm-cancel" class="secondary" aria-label="Cancel">Cancel</button>
+        <button id="gate-continue" aria-label="Continue">Continue</button>
       </div>
     </div>
-  </div>
+  </section>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
