@@ -1,0 +1,58 @@
+```css
+:root{
+  --bg:#0b0f14; --panel:#111822; --muted:#9fb0c5; --text:#e9f1fb;
+  --y:#facc15; --g:#22c55e; --b:#3b82f6; --p:#9333ea;
+  --good:#4ade80; --warn:#f59e0b; --bad:#ef4444;
+  --card:#172132; --card-hover:#1e2a3e; --card-selected:#2b3b57;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial; background:radial-gradient(1000px 600px at 20% -10%, #152033 0%, #0b0f14 70%); color:var(--text); display:flex; align-items:center; justify-content:center; padding:24px}
+.app{width:min(1024px, 100%)}
+header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px}
+h1{font-size:clamp(20px, 4vw, 28px); margin:0; letter-spacing:.5px}
+.controls{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.toggle{display:inline-flex; align-items:center; gap:6px; font-size:14px; color:var(--muted); margin-left:6px}
+button{background:linear-gradient(180deg,#243044,#1b2536); border:1px solid #27344a; color:var(--text); padding:10px 14px; border-radius:12px; font-weight:600; cursor:pointer; transition:.15s transform,.15s background}
+button:hover{transform:translateY(-1px); background:linear-gradient(180deg,#2b3a53,#223049)}
+button:active{transform:translateY(0)}
+button.secondary{background:#152033; border-color:#233145}
+.statusbar{display:flex; align-items:center; gap:12px; margin:4px 0 16px 0; color:var(--muted); font-size:14px}
+.strike{width:16px; height:16px; border-radius:50%; background:#223049; border:1px solid #2d3d57}
+.strike.fill{background:var(--bad); box-shadow:0 0 0 2px rgba(239,68,68,.2) inset}
+.grid{display:grid; grid-template-columns:repeat(4, 1fr); gap:10px}
+.card{user-select:none; -webkit-user-select:none; background:var(--card); border:1px solid #243044; border-radius:16px; padding:16px; min-height:70px; display:flex; align-items:center; justify-content:center; text-align:center; font-weight:700; letter-spacing:.3px; cursor:pointer; transition:.15s background,.2s transform,.15s border-color}
+.card:hover{background:var(--card-hover)}
+.card[aria-pressed="true"], .card.selected{background:var(--card-selected); border-color:#38507a}
+.card.locked{cursor:default; background:#1e2a3e; border-color:#48648f}
+.group{display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:16px 0}
+.group .title{grid-column:1/-1; padding:12px 14px; border-radius:12px; font-weight:800}
+.tier-y{background:linear-gradient(180deg,#3a3200,#2b2500); border:1px solid #4d3f00}
+.tier-g{background:linear-gradient(180deg,#0f2b17,#0a2111); border:1px solid #1e5a33}
+.tier-b{background:linear-gradient(180deg,#0b2344,#07192f); border:1px solid #174a8b}
+.tier-p{background:linear-gradient(180deg,#240d3b,#170727); border:1px solid #4b1f7a}
+.footer{margin-top:18px; color:var(--muted); font-size:13px}
+.toast{position:fixed; inset:auto 16px 16px auto; background:#152033; color:var(--text); border:1px solid #27344a; padding:10px 12px; border-radius:10px; opacity:0; transform:translateY(8px); transition:.2s}
+.toast.show{opacity:1; transform:translateY(0)}
+
+/* Leaderboard */
+.leaderboard{display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-top:20px}
+.board{background:#111822; border:1px solid #243044; border-radius:16px; padding:12px}
+.board h2{margin:8px 8px 6px; font-size:16px; color:var(--muted)}
+.lb-list{margin:0; padding:0 22px 8px}
+.lb-list li{margin:6px 0; display:flex; justify-content:space-between; gap:8px}
+.lb-name{font-weight:700}
+.lb-meta{color:var(--muted); font-size:12px}
+
+/* Modal */
+.modal{position:fixed; inset:0; background:rgba(0,0,0,.45); display:grid; place-items:center}
+.modal[hidden]{display:none}
+.modal-card{width:min(440px,90vw); background:#121a26; border:1px solid #2a3952; border-radius:16px; padding:18px}
+.modal-card h2{margin:0 0 6px}
+.field{display:flex; flex-direction:column; gap:6px; margin:12px 0}
+input{background:#0f1724; color:var(--text); border:1px solid #2a3952; border-radius:10px; padding:10px 12px}
+.row{display:flex; gap:8px; justify-content:flex-end}
+.muted{color:var(--muted); font-size:13px}
+
+@media (max-width:800px){ .leaderboard{grid-template-columns:1fr} }
+```
