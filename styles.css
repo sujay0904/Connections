@@ -1,4 +1,3 @@
-
 :root{
   --bg:#0b0f14; --panel:#111822; --muted:#9fb0c5; --text:#e9f1fb;
   --y:#facc15; --g:#22c55e; --b:#3b82f6; --p:#9333ea;
@@ -17,6 +16,7 @@ button{background:linear-gradient(180deg,#243044,#1b2536); border:1px solid #273
 button:hover{transform:translateY(-1px); background:linear-gradient(180deg,#2b3a53,#223049)}
 button:active{transform:translateY(0)}
 button.secondary{background:#152033; border-color:#233145}
+.btn-link{display:inline-flex; align-items:center; text-decoration:none; padding:10px 12px; border-radius:12px; border:1px solid #27344a; background:#152033; color:var(--text)}
 .statusbar{display:flex; align-items:center; gap:12px; margin:4px 0 16px 0; color:var(--muted); font-size:14px}
 .strike{width:16px; height:16px; border-radius:50%; background:#223049; border:1px solid #2d3d57}
 .strike.fill{background:var(--bad); box-shadow:0 0 0 2px rgba(239,68,68,.2) inset}
@@ -38,11 +38,13 @@ button.secondary{background:#152033; border-color:#233145}
 /* Leaderboard */
 .leaderboard{display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-top:20px}
 .board{background:#111822; border:1px solid #243044; border-radius:16px; padding:12px}
+.board-head{display:flex; align-items:center; justify-content:space-between}
 .board h2{margin:8px 8px 6px; font-size:16px; color:var(--muted)}
 .lb-list{margin:0; padding:0 22px 8px}
 .lb-list li{margin:6px 0; display:flex; justify-content:space-between; gap:8px}
 .lb-name{font-weight:700}
 .lb-meta{color:var(--muted); font-size:12px}
+.lb-empty{color:var(--muted); font-size:13px; padding:8px 12px}
 
 /* Modal */
 .modal{position:fixed; inset:0; background:rgba(0,0,0,.45); display:grid; place-items:center}
@@ -55,4 +57,3 @@ input{background:#0f1724; color:var(--text); border:1px solid #2a3952; border-ra
 .muted{color:var(--muted); font-size:13px}
 
 @media (max-width:800px){ .leaderboard{grid-template-columns:1fr} }
-
