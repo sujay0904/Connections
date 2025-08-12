@@ -116,51 +116,64 @@ elGateGo.addEventListener('click', async ()=>{
 function computeScore(strikes){ return 100 - (20 * clamp(strikes,0,4)); }
 async function submitScore({ score, strikes, durationMs, mode }) {
   const player = state.player;
-  if (!player) return { ok:false, where:'none', reason:'no-player' };
+  if (!player) { toast('Pick a player first'); return; }
 
-  const row = {
-    player_id: player.id, name: player.name, date: todayISO(),
-    score, mode, strikes, duration_ms: durationMs, created_at: new Date().toISOString()
+  const rowBase = {
+    date: todayISO(),                      // 'YYYY-MM-DD'
+    mode,                                  // 'daily' | 'random'
+    score,
+    strikes,
+    duration_ms: durationMs,
+    created_at: new Date().toISOString()
   };
 
   const saveLocal = () => {
     const list = storage.get('scores', []);
-    list.push(row);
+    // Store a copy with a synthetic id for local history
+    list.push({ ...rowBase, player_id: player.id, name: player.name });
     try {
       storage.set('scores', list);
       localStorage.setItem('__scores_ping__', String(Date.now()));
     } catch {}
-    return { ok:true, where:'local' };
+    toast(`Saved locally: ${score} pts`);
   };
 
-  if (!supabase) return saveLocal();
+  if (!supabase) { saveLocal(); return; }
 
   try {
-    // Ensure player has a proper UUID in cloud
-    if (!/^[0-9a-fA-F-]{36}$/.test(String(player.id))) {
-      const { data, error } = await supabase
-        .from('players')
-        .upsert({ name: player.name }, { onConflict:'name' })
-        .select().single();
-      if (error) throw error;
-      state.player = data;
-      storage.set('player', data);
-      row.player_id = data.id;
-    }
+    // Always get canonical player row from the server (correct id type)
+    const up = await supabase
+      .from('players')
+      .upsert({ name: player.name }, { onConflict: 'name' })
+      .select()
+      .single();
+    if (up.error) throw up.error;
 
-    // Use upsert to avoid duplicates if users replay
-    const { error: insErr } = await supabase
+    // Update local state with the server shape
+    state.player = up.data;
+    storage.set('player', up.data);
+
+    // Now push the score using the server id (bigint or uuid—doesn’t matter)
+    const insert = await supabase
       .from('scores')
-      .upsert(
-        { player_id: row.player_id, date: row.date, mode: row.mode, score: row.score, strikes: row.strikes, duration_ms: row.duration_ms },
-        { onConflict: 'player_id,date,mode' }
-      );
+      .insert({
+        player_id: up.data.id,      // ← guaranteed correct type
+        ...rowBase
+      })
+      .select()
+      .single();
 
-    if (insErr) throw insErr;
-    return { ok:true, where:'cloud' };
-  } catch (err) {
-    console.warn('submitScore cloud error → local fallback:', err);
-    return saveLocal();
+    if (insert.error) throw insert.error;
+
+    toast(`Submitted (cloud): ${score} pts`);
+    await loadLeaderboards();
+  } catch (e) {
+    console.error('Cloud save failed:', e);
+    saveLocal();
+    // Optional: show a specific hint when RLS is the blocker
+    if (String(e.message || e).toLowerCase().includes('row level security')) {
+      toast('RLS blocked score writes. Add a dev allow-all policy to scores.');
+    }
   }
 }
 
