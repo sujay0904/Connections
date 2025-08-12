@@ -114,25 +114,61 @@ elGateGo.addEventListener('click', async ()=>{
 
 // ---- Leaderboard ----------------------------------------------------------
 function computeScore(strikes){ return 100 - (20 * clamp(strikes,0,4)); }
-async function submitScore({ score, strikes, durationMs, mode }){
-  const player = state.player; if(!player) return;
-  const row = { player_id: player.id, name: player.name, date: todayISO(), score, mode, strikes, duration_ms: durationMs, created_at: new Date().toISOString() };
-  const saveLocal = () => { const list = storage.get('scores', []); list.push(row); try{ storage.set('scores', list); localStorage.setItem('__scores_ping__', String(Date.now())); }catch{} };
-  if(!supabase){ saveLocal(); return; }
-  try{
-    if(!/^[0-9a-fA-F-]{36}$/.test(String(player.id))){
-      const { data, error } = await supabase.from('players').upsert({ name: player.name }, { onConflict:'name' }).select().single();
-      if(error) throw error; state.player = data; storage.set('player', data); row.player_id = data.id;
+async function submitScore({ score, strikes, durationMs, mode }) {
+  const player = state.player;
+  if (!player) return { ok:false, where:'none', reason:'no-player' };
+
+  const row = {
+    player_id: player.id, name: player.name, date: todayISO(),
+    score, mode, strikes, duration_ms: durationMs, created_at: new Date().toISOString()
+  };
+
+  const saveLocal = () => {
+    const list = storage.get('scores', []);
+    list.push(row);
+    try {
+      storage.set('scores', list);
+      localStorage.setItem('__scores_ping__', String(Date.now()));
+    } catch {}
+    return { ok:true, where:'local' };
+  };
+
+  if (!supabase) return saveLocal();
+
+  try {
+    // Ensure player has a proper UUID in cloud
+    if (!/^[0-9a-fA-F-]{36}$/.test(String(player.id))) {
+      const { data, error } = await supabase
+        .from('players')
+        .upsert({ name: player.name }, { onConflict:'name' })
+        .select().single();
+      if (error) throw error;
+      state.player = data;
+      storage.set('player', data);
+      row.player_id = data.id;
     }
-    const { error: insErr } = await supabase.from('scores').insert({ player_id: row.player_id, date: row.date, score: row.score, mode: row.mode, strikes: row.strikes, duration_ms: row.duration_ms });
-    if(insErr) throw insErr;
-  }catch(err){ console.warn('submitScore error (fallback to local):', err); toast('Cloud save failed — saved locally.'); saveLocal(); }
+
+    // Use upsert to avoid duplicates if users replay
+    const { error: insErr } = await supabase
+      .from('scores')
+      .upsert(
+        { player_id: row.player_id, date: row.date, mode: row.mode, score: row.score, strikes: row.strikes, duration_ms: row.duration_ms },
+        { onConflict: 'player_id,date,mode' }
+      );
+
+    if (insErr) throw insErr;
+    return { ok:true, where:'cloud' };
+  } catch (err) {
+    console.warn('submitScore cloud error → local fallback:', err);
+    return saveLocal();
+  }
 }
+
 async function loadLeaderboards(){
   if(!supabase){
     const scores = storage.get('scores', []); const today = todayISO();
     const todayList = scores.filter(s=>s.date===today).sort((a,b)=> b.score-a.score || a.duration_ms-b.duration_ms).slice(0,10);
-    const allList = scores.slice().sort((a,b)=> b.score-a-score || a.duration_ms-b.duration_ms).slice(0,20);
+    const allList = scores.slice().sort((a,b)=> b.score-a.score || a.duration_ms-b.duration_ms).slice(0,20);
     renderLeaderboard(todayList, allList); return;
   }
   try{
@@ -145,7 +181,7 @@ async function loadLeaderboards(){
     console.warn('loadLeaderboards cloud error → local fallback:', err);
     const scores = storage.get('scores', []); const today = todayISO();
     const todayList = scores.filter(s=>s.date===today).sort((a,b)=> b.score-a.score || a.duration_ms-b.duration_ms).slice(0,10);
-    const allList = scores.slice().sort((a,b)=> b.score-a-score || a.duration_ms-b.duration_ms).slice(0,20);
+    const allList = scores.slice().sort((a,b)=> b.score-a.score || a.duration_ms-b.duration_ms).slice(0,20);
     renderLeaderboard(todayList, allList);
     toast('Showing local leaderboard (cloud unavailable).');
   }
@@ -183,7 +219,13 @@ async function check(){ if(state.selected.size!==4) return; const chosen=[...sta
 function revealAll(){ const found=new Set(state.solved.map(s=>s.title)); for(const s of state.current.sets){ if(!found.has(s.title)){ state.solved.push({title:s.title, words:s.words.slice(), tier:s.tier}); }} state.pool=[]; state.selected.clear(); render(); elStatus.textContent='Out of strikes — puzzle revealed.'; }
 function shufflePool(){ const rnd=rngFromSeed(Math.floor(Math.random()*2**32)); state.pool=shuffleSeeded(state.pool, rnd); render(); }
 function clearSel(){ state.selected.clear(); updateStatus(); render(); }
-async function finishGame(){ const durationMs = performance.now() - state.startedAt; const score = computeScore(state.strikes); await submitScore({ score, strikes: state.strikes, durationMs, mode: state.daily? 'daily':'random' }); await loadLeaderboards(); toast(`Submitted: ${score} pts`); }
+async function finishGame() {
+  const durationMs = performance.now() - state.startedAt;
+  const score = computeScore(state.strikes);
+  const res = await submitScore({ score, strikes: state.strikes, durationMs, mode: state.daily ? 'daily' : 'random' });
+  await loadLeaderboards();
+  toast(res.where === 'cloud' ? `Submitted (cloud): ${score} pts` : `Saved locally: ${score} pts`);
+}
 function newGame(){ state.strikes=0; state.selected.clear(); state.solved=[]; state.current=generatePuzzle(); state.pool=shuffleSeeded(state.current.words.slice(), rngFromSeed(Math.random()*1e9)); state.startedAt=performance.now(); updateStatus(); render(); toast('New puzzle'); }
 
 // ---- Boot -----------------------------------------------------------------
