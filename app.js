@@ -231,8 +231,4 @@ function newGame(){ state.strikes=0; state.selected.clear(); state.solved=[]; st
 // ---- Boot -----------------------------------------------------------------
 (async function start(){ 
   await initSupabase(); 
-  supabase = mod.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  window.supabase = supabase;            // ← expose for DevTools
-  window.initSupabase = initSupabase;    // ← optional: callable from console
-  console.log('Supabase initialised');
   await loadLeaderboards(); startLiveUpdates(); state.daily=false; openGate(); })();
