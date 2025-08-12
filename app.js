@@ -230,5 +230,4 @@ function newGame(){ state.strikes=0; state.selected.clear(); state.solved=[]; st
 
 // ---- Boot -----------------------------------------------------------------
 (async function start(){ 
-  await initSupabase(); 
-  await loadLeaderboards(); startLiveUpdates(); state.daily=false; openGate(); })();
+  await initSupabase(); await loadLeaderboards(); startLiveUpdates(); state.daily=false; openGate(); })();
