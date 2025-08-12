@@ -229,4 +229,10 @@ async function finishGame() {
 function newGame(){ state.strikes=0; state.selected.clear(); state.solved=[]; state.current=generatePuzzle(); state.pool=shuffleSeeded(state.current.words.slice(), rngFromSeed(Math.random()*1e9)); state.startedAt=performance.now(); updateStatus(); render(); toast('New puzzle'); }
 
 // ---- Boot -----------------------------------------------------------------
-(async function start(){ await initSupabase(); await loadLeaderboards(); startLiveUpdates(); state.daily=false; openGate(); })();
+(async function start(){ 
+  await initSupabase(); 
+  supabase = mod.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  window.supabase = supabase;            // ← expose for DevTools
+  window.initSupabase = initSupabase;    // ← optional: callable from console
+  console.log('Supabase initialised');
+  await loadLeaderboards(); startLiveUpdates(); state.daily=false; openGate(); })();
