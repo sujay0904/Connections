@@ -115,65 +115,68 @@ elGateGo.addEventListener('click', async ()=>{
 // ---- Leaderboard ----------------------------------------------------------
 function computeScore(strikes){ return 100 - (20 * clamp(strikes,0,4)); }
 async function submitScore({ score, strikes, durationMs, mode }) {
-  const player = state.player;
-  if (!player) { toast('Pick a player first'); return; }
+  if (!state?.player) {
+    toast('Pick a player first');
+    return { ok: false, where: 'none', reason: 'no-player' };
+  }
 
+  const date = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
   const rowBase = {
-    date: todayISO(),                      // 'YYYY-MM-DD'
-    mode,                                  // 'daily' | 'random'
+    date,
+    mode,                          // 'daily' | 'random'
     score,
     strikes,
     duration_ms: durationMs,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
   };
 
+  // Local fallback
   const saveLocal = () => {
-    const list = storage.get('scores', []);
-    // Store a copy with a synthetic id for local history
-    list.push({ ...rowBase, player_id: player.id, name: player.name });
     try {
+      const list = storage.get('scores', []);
+      list.push({ ...rowBase, player_id: state.player.id, name: state.player.name });
       storage.set('scores', list);
       localStorage.setItem('__scores_ping__', String(Date.now()));
-    } catch {}
-    toast(`Saved locally: ${score} pts`);
+    } catch {/* ignore */}
+    return { ok: true, where: 'local' };
   };
 
-  if (!supabase) { saveLocal(); return; }
+  // If Supabase client isn't available, save locally
+  if (!supabase) return saveLocal();
 
   try {
-    // Always get canonical player row from the server (correct id type)
+    // 1) Ensure we use the server's player ID (avoids UUID/BIGINT mismatches)
     const up = await supabase
       .from('players')
-      .upsert({ name: player.name }, { onConflict: 'name' })
+      .upsert({ name: state.player.name }, { onConflict: 'name' })
       .select()
       .single();
     if (up.error) throw up.error;
 
-    // Update local state with the server shape
+    // Sync state with canonical player row from DB
     state.player = up.data;
     storage.set('player', up.data);
 
-    // Now push the score using the server id (bigint or uuid—doesn’t matter)
-    const insert = await supabase
+    // 2) Try to write the score
+    const payload = { player_id: up.data.id, ...rowBase };
+
+    // Prefer upsert if you have a unique index on (player_id, date, mode)
+    let res = await supabase
       .from('scores')
-      .insert({
-        player_id: up.data.id,      // ← guaranteed correct type
-        ...rowBase
-      })
+      .upsert(payload, { onConflict: 'player_id,date,mode' })
       .select()
       .single();
 
-    if (insert.error) throw insert.error;
-
-    toast(`Submitted (cloud): ${score} pts`);
-    await loadLeaderboards();
-  } catch (e) {
-    console.error('Cloud save failed:', e);
-    saveLocal();
-    // Optional: show a specific hint when RLS is the blocker
-    if (String(e.message || e).toLowerCase().includes('row level security')) {
-      toast('RLS blocked score writes. Add a dev allow-all policy to scores.');
+    // If the unique index isn't created yet, fall back to plain insert
+    if (res.error && /unique|constraint|on conflict/i.test(res.error.message || '')) {
+      res = await supabase.from('scores').insert(payload).select().single();
     }
+
+    if (res.error) throw res.error;
+    return { ok: true, where: 'cloud', data: res.data };
+  } catch (e) {
+    console.error('Cloud save failed → saving locally:', e);
+    return saveLocal();
   }
 }
 
@@ -233,11 +236,16 @@ function revealAll(){ const found=new Set(state.solved.map(s=>s.title)); for(con
 function shufflePool(){ const rnd=rngFromSeed(Math.floor(Math.random()*2**32)); state.pool=shuffleSeeded(state.pool, rnd); render(); }
 function clearSel(){ state.selected.clear(); updateStatus(); render(); }
 async function finishGame() {
-  const durationMs = performance.now() - state.startedAt;
+  const durationMs = Math.round(performance.now() - state.startedAt);
   const score = computeScore(state.strikes);
-  const res = await submitScore({ score, strikes: state.strikes, durationMs, mode: state.daily ? 'daily' : 'random' });
+  const mode = state.daily ? 'daily' : 'random';
+
+  const res = await submitScore({ score, strikes: state.strikes, durationMs, mode });
   await loadLeaderboards();
-  toast(res.where === 'cloud' ? `Submitted (cloud): ${score} pts` : `Saved locally: ${score} pts`);
+
+  toast(res.where === 'cloud'
+    ? `Submitted (cloud): ${score} pts`
+    : `Saved locally: ${score} pts`);
 }
 function newGame(){ state.strikes=0; state.selected.clear(); state.solved=[]; state.current=generatePuzzle(); state.pool=shuffleSeeded(state.current.words.slice(), rngFromSeed(Math.random()*1e9)); state.startedAt=performance.now(); updateStatus(); render(); toast('New puzzle'); }
 
