@@ -16,6 +16,10 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Connections — Infinite (seeded/random) + Name Gate & Live Leaderboard
 // Clean, single source of truth (no duplicates)
 
+// === Arcade scoring constants (tweak to taste) ===
+const POINTS_PER_PUZZLE = 100;
+const STRIKE_PENALTY = 25;   // optional: set to 0 if you don't want point loss
+const MAX_STRIKES = 4;       // lose when strikes reach MAX_STRIKES
 
 let supabase = null;
 async function initSupabase(){
@@ -63,7 +67,7 @@ document.getElementById('btn-change-player').addEventListener('click', ()=> open
 // ---- State ----------------------------------------------------------------
 const tiersOrder = ['y','g','b','p'];
 const tierClass = t => ({y:'tier-y',g:'tier-g',b:'tier-b',p:'tier-p'})[t] || 'tier-y';
-let state = { current:null, pool:[], solved:[], selected:new Set(), strikes:0, daily:false, player:null, startedAt:0 };
+let state = { player: storage.get('player', null),current:null, pool:[], solved:[], selected:new Set(), strikes:0, daily:false, session: null, player:null, startedAt:0,  };
 let playersCache = [];
 
 // ---- Players --------------------------------------------------------------
@@ -96,6 +100,8 @@ async function populatePlayerSelect(){
   if(saved){ const match = playersCache.find(p=>p.id===saved.id) || playersCache.find(p=>p.name.toLowerCase()===saved.name?.toLowerCase()); if(match) elSelect.value = match.id; }
   if(playersCache.length===0){ elSelect.value='__add__'; elNewField.hidden=false; elNewInput.focus(); }
   else { elNewField.hidden = (elSelect.value !== '__add__'); }
+  startArcadeSession();
+  loadFirstPuzzle();
   validateGate();
 }
 function openGate(){ elGate.hidden=false; elGate.style.removeProperty('display'); elGate.setAttribute('aria-hidden','false'); document.body.classList.add('no-scroll'); populatePlayerSelect(); }
@@ -111,6 +117,75 @@ elGateGo.addEventListener('click', async ()=>{
   if(!player){ elGateGo.disabled=false; return; }
   state.player = player; closeGate(); await loadLeaderboards(); toast(`Hello, ${player.name}!`); newGame(); elGateGo.disabled=false;
 });
+
+//session
+
+function newSessionId() {
+  // Use crypto if available; otherwise a timestamp-based fallback
+  return (crypto?.randomUUID?.() || `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+}
+
+function startArcadeSession() {
+  state.session = {
+    id: newSessionId(),
+    startedAt: performance.now(),
+    startedWall: Date.now(),
+    endedAt: null,
+    totalScore: 0,
+    puzzlesSolved: 0,
+    strikesUsed: 0,
+    isOver: false,
+    submitted: false,
+  };
+  renderHUD();
+}
+
+function awardPuzzleSolved() {
+  if (!state.session || state.session.isOver) return;
+  state.session.puzzlesSolved += 1;
+  state.session.totalScore += POINTS_PER_PUZZLE;
+  renderHUD();
+}
+
+function registerStrike() {
+  if (!state.session || state.session.isOver) return;
+  state.session.strikesUsed += 1;
+  if (STRIKE_PENALTY) state.session.totalScore = Math.max(0, state.session.totalScore - STRIKE_PENALTY);
+  renderHUD();
+  if (state.session.strikesUsed >= MAX_STRIKES) {
+    endArcadeSession('out-of-strikes');
+  }
+}
+
+function endArcadeSession(reason = 'ended') {
+  if (!state.session || state.session.isOver) return;
+  state.session.isOver = true;
+  state.session.endedAt = performance.now();
+  // Show game-over UI
+  showGameOver();
+  renderHUD();
+}
+
+function sessionDurationMs() {
+  if (!state.session) return 0;
+  const end = state.session.isOver ? state.session.endedAt : performance.now();
+  return Math.round(end - state.session.startedAt);
+}
+
+function renderHUD() {
+  // Update any counters you show on screen; customise selectors to your UI
+  const elScore = document.getElementById('hudScore');
+  const elSolved = document.getElementById('hudSolved');
+  const elStrikes = document.getElementById('hudStrikes');
+  if (elScore)   elScore.textContent = `${state.session?.totalScore ?? 0}`;
+  if (elSolved)  elSolved.textContent = `${state.session?.puzzlesSolved ?? 0}`;
+  if (elStrikes) elStrikes.textContent = `${state.session?.strikesUsed ?? 0}/${MAX_STRIKES}`;
+
+  // Toggle submit button visibility on game over
+  const submitBtn = document.getElementById('submitScoreBtn');
+  if (submitBtn) submitBtn.style.display = state.session?.isOver ? 'inline-flex' : 'none';
+}
+
 
 // ---- Leaderboard ----------------------------------------------------------
 function computeScore(strikes){ return 100 - (20 * clamp(strikes,0,4)); }
@@ -227,11 +302,11 @@ function updateStatus(){ const s=state.selected.size; elStatus.textContent = s==
 function render(){
   elGame.innerHTML='';
   for(const g of state.solved){ const block=document.createElement('div'); block.className='group'; const title=document.createElement('div'); title.className='title '+tierClass(g.tier); title.textContent=g.title; block.appendChild(title); g.words.forEach(w=>{ const c=document.createElement('div'); c.className='card locked'; c.textContent=w; block.appendChild(c); }); elGame.appendChild(block); }
-  if(state.solved.length===4){ elStatus.textContent='Perfect! You solved them all.'; return; }
+  if(state.solved.length===4){ elStatus.textContent='Perfect! You solved them all.'; awardPuzzleSolved(); loadNextPuzzle(); return; }
   const grid=document.createElement('div'); grid.className='grid'; state.pool.forEach(word=>{ const btn=document.createElement('button'); btn.className='card'; btn.type='button'; btn.setAttribute('aria-pressed', state.selected.has(word)?'true':'false'); btn.textContent=word; btn.addEventListener('click', ()=>toggle(word)); grid.appendChild(btn); }); elGame.appendChild(grid);
 }
 function toggle(word){ const sel=state.selected; sel.has(word)?sel.delete(word):sel.add(word); if(sel.size>4){ sel.delete(sel.values().next().value); } if(sel.size===4){ setTimeout(check, 80);} else { updateStatus(); render(); } }
-async function check(){ if(state.selected.size!==4) return; const chosen=[...state.selected]; const title=state.current.wordToTitle.get(chosen[0]); const ok=chosen.every(w=>state.current.wordToTitle.get(w)===title); if(ok){ state.pool = state.pool.filter(w=>!state.selected.has(w)); const tierIdx = state.solved.length; const tier = state.current.tiers[tierIdx] || 'y'; state.solved.push({title, words:chosen.slice(), tier}); state.selected.clear(); toast('Correct!'); } else { state.strikes++; toast('Nope — try another combo.'); if(state.strikes>=4){ revealAll(); return; } state.selected.clear(); } updateStatus(); render(); if(state.solved.length===4){ await finishGame(); } }
+async function check(){ if(state.selected.size!==4) return; const chosen=[...state.selected]; const title=state.current.wordToTitle.get(chosen[0]); const ok=chosen.every(w=>state.current.wordToTitle.get(w)===title); if(ok){ state.pool = state.pool.filter(w=>!state.selected.has(w)); const tierIdx = state.solved.length; const tier = state.current.tiers[tierIdx] || 'y'; state.solved.push({title, words:chosen.slice(), tier}); state.selected.clear(); toast('Correct!'); } else { state.strikes++; registerStrike(); toast('Nope — try another combo.'); if(state.strikes>=4){ revealAll(); return; } state.selected.clear(); } updateStatus(); render(); if(state.solved.length===4){ await finishGame(); } }
 function revealAll(){ const found=new Set(state.solved.map(s=>s.title)); for(const s of state.current.sets){ if(!found.has(s.title)){ state.solved.push({title:s.title, words:s.words.slice(), tier:s.tier}); }} state.pool=[]; state.selected.clear(); render(); elStatus.textContent='Out of strikes — puzzle revealed.'; }
 function shufflePool(){ const rnd=rngFromSeed(Math.floor(Math.random()*2**32)); state.pool=shuffleSeeded(state.pool, rnd); render(); }
 function clearSel(){ state.selected.clear(); updateStatus(); render(); }
