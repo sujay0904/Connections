@@ -3,24 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Our Own Connections</title>
+  <title>Connections — Endless Mode</title>
   <!--
-    Implementation notes
-    - Endless run of Connections-style puzzles
-    - Per-puzzle: 4 mistakes; every wrong guess (incl. "One away!") costs 1 mistake and –25 points
-    - Repeated wrong combination does NOT cost a mistake (we show a notice)
-    - Score per solved puzzle: 100 / 75 / 50 / 25 (min 0). Losing puzzle scores 0.
-    - Streak = number of puzzles solved in current run. Shown live and on leaderboard.
-    - Anti-repeat within a run: track used puzzle IDs; re-roll if already seen. If we run out, we reset the set.
-    - Win/Lose: show quick image overlay for 2 seconds, then continue (win → next puzzle; lose → final screen)
-    - Styling mirrors NYT Connections feel (adjust colour variables below if you want pixel-perfect).
-    - Puzzles are expected from an external `puzzles.js` file that defines `window.CONNECTIONS_PUZZLES`.
-      A minimal fallback sample is included for previewing if that file is absent.
+    Endless Connections with Supabase leaderboard (client-side only).
+    - Per puzzle: 4 mistakes; each wrong (incl. "One away!") = –25 points.
+    - Repeated wrong combination: toast + NO penalty.
+    - Streak = puzzles solved in this run. Shows live + on leaderboard.
+    - Anti-repeat of puzzle IDs within a run.
+    - Win/Lose overlays show placeholder images for 2s.
+    - Leaderboard: localStorage fallback OR Supabase if configured.
+    - Puzzles come from puzzles.js (window.CONNECTIONS_PUZZLES).
   -->
 
   <style>
     :root {
-      /* Adjust these to more closely match NYT Connections palette if desired */
+      /* Tweak if needed to match NYT Connections vibe */
       --bg: #f6f6f5;
       --text: #111;
       --muted: #777;
@@ -34,7 +31,7 @@
       --btn-disabled-bg: #bbb;
       --btn-disabled-text: #fff;
 
-      /* Category colours (tweak as needed) */
+      /* Category colours */
       --cat-yellow: #f7da21;
       --cat-green: #6ac36f;
       --cat-blue:  #6aa7ff;
@@ -60,23 +57,11 @@
       border-bottom: 1px solid #e2e2e2;
       gap: 12px;
     }
-    .brand {
-      font-weight: 800;
-      letter-spacing: 0.5px;
-      font-size: 20px;
-    }
-    .status {
-      display: flex;
-      gap: 14px;
-      font-size: 14px;
-      color: var(--muted);
-    }
+    .brand { font-weight: 800; letter-spacing: 0.5px; font-size: 20px; }
+    .status { display: flex; gap: 14px; font-size: 14px; color: var(--muted); }
     .status b { color: var(--text); }
 
-    main {
-      width: min(900px, 92vw);
-      margin: 18px auto 28px;
-    }
+    main { width: min(900px, 92vw); margin: 18px auto 28px; }
 
     #solvedArea { display: grid; gap: 10px; margin-bottom: 16px; }
     .solved-row {
@@ -97,12 +82,7 @@
     .cat-blue   { background: color-mix(in oklab, var(--cat-blue) 45%, white); }
     .cat-purple { background: color-mix(in oklab, var(--cat-purple) 45%, white); }
 
-    /* Grid */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-    }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
     .tile {
       user-select: none;
       background: var(--tile-bg);
@@ -116,92 +96,40 @@
       transition: transform 120ms ease, background 120ms ease, color 120ms ease, border-color 120ms ease;
     }
     .tile:hover { background: var(--tile-hover); }
-    .tile.selected {
-      background: var(--tile-selected-bg);
-      color: var(--tile-selected-text);
-      border-color: #000;
-      transform: translateY(-1px);
-    }
+    .tile.selected { background: var(--tile-selected-bg); color: var(--tile-selected-text); border-color: #000; transform: translateY(-1px); }
     .tile.locked { opacity: 0.35; pointer-events: none; }
 
-    /* Controls */
-    .controls {
-      display: flex;
-      gap: 10px;
-      margin: 16px 0 10px;
-    }
-    button {
-      appearance: none;
-      border: none;
-      background: var(--btn-bg);
-      color: var(--btn-text);
-      padding: 10px 14px;
-      border-radius: 999px;
-      font-weight: 700;
-      letter-spacing: 0.2px;
-      cursor: pointer;
-    }
+    .controls { display: flex; gap: 10px; margin: 16px 0 10px; }
+    button { appearance: none; border: none; background: var(--btn-bg); color: var(--btn-text); padding: 10px 14px; border-radius: 999px; font-weight: 700; letter-spacing: 0.2px; cursor: pointer; }
     button.secondary { background: #ddd; color: #111; }
     button:disabled { background: var(--btn-disabled-bg); color: var(--btn-disabled-text); cursor: not-allowed; }
 
-    .hud {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-top: 6px;
-    }
+    .hud { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
 
-    .mistakes {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
+    .mistakes { display: flex; align-items: center; gap: 6px; }
     .dot { width: 10px; height: 10px; border-radius: 50%; background: #ccc; }
     .dot.live { background: #111; }
 
     #feedback { min-height: 24px; margin-top: 8px; color: var(--muted); font-weight: 600; }
 
-    .toast {
-      position: fixed; left: 50%; transform: translateX(-50%);
-      bottom: 24px; background: #111; color: #fff; padding: 10px 14px; border-radius: 999px;
-      font-weight: 700; letter-spacing: 0.2px; opacity: 0; pointer-events: none; transition: opacity 200ms ease;
-    }
+    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; background: #111; color: #fff; padding: 10px 14px; border-radius: 999px; font-weight: 700; letter-spacing: 0.2px; opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
     .toast.show { opacity: 1; }
 
     .shake { animation: shake 250ms ease; }
-    @keyframes shake {
-      0%{ transform: translateX(0); }
-      25%{ transform: translateX(-3px); }
-      50%{ transform: translateX(3px); }
-      75%{ transform: translateX(-3px); }
-      100%{ transform: translateX(0); }
-    }
+    @keyframes shake { 0%{ transform: translateX(0);}25%{ transform: translateX(-3px);}50%{ transform: translateX(3px);}75%{ transform: translateX(-3px);}100%{ transform: translateX(0);} }
 
-    /* Overlays for win/lose images */
-    .overlay {
-      position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,0.35);
-      opacity: 0; pointer-events: none; transition: opacity 200ms ease;
-    }
+    .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,0.35); opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
     .overlay img { width: min(60vmin, 360px); height: auto; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
     .overlay.show { opacity: 1; pointer-events: auto; }
 
-    /* Game Over panel */
-    .modal {
-      position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,0.15);
-      opacity: 0; pointer-events: none; transition: opacity 200ms ease;
-    }
+    .modal { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,0.15); opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
     .modal.show { opacity: 1; pointer-events: auto; }
-    .card {
-      width: min(520px, 92vw);
-      background: #fff; border-radius: 16px; padding: 18px; box-shadow: 0 8px 40px rgba(0,0,0,0.18);
-    }
+    .card { width: min(520px, 92vw); background: #fff; border-radius: 16px; padding: 18px; box-shadow: 0 8px 40px rgba(0,0,0,0.18); }
     .card h2 { margin: 6px 0 12px; }
     .row { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
     .field { display: grid; gap: 6px; margin: 10px 0; }
     input[type="text"] { padding: 10px 12px; border-radius: 10px; border: 1px solid #ccc; font-size: 15px; }
 
-    /* Leaderboard */
     #leaderboard { margin: 32px 0 24px; }
     #leaderboard h3 { margin-bottom: 8px; }
     table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; }
@@ -276,55 +204,40 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <!-- Load your external puzzles file here. Expected to define window.CONNECTIONS_PUZZLES -->
+  <!-- Optional: set these on the page before loading index.js -->
+  <!--
+  <script>
+    window.SUPABASE_URL = "https://YOUR-PROJECT-ref.supabase.co";
+    window.SUPABASE_ANON_KEY = "YOUR_PUBLIC_ANON_KEY";
+  </script>
+  -->
+
+  <!-- Supabase client (v2) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Puzzles file (defines window.CONNECTIONS_PUZZLES) -->
   <script src="puzzles.js"></script>
 
   <script>
-    // --- Fallback puzzles (for preview if puzzles.js is missing) ---
-    if (!window.CONNECTIONS_PUZZLES) {
-      window.CONNECTIONS_PUZZLES = [
-        {
-          id: "SAMPLE-001",
-          categories: [
-            { name: "Feline Things", color: "yellow", words: ["CAT", "WHISKER", "PURR", "PAW"] },
-            { name: "Weather Words", color: "green", words: ["RAIN", "CLOUD", "SUN", "WIND"] },
-            { name: "Containers", color: "blue", words: ["JAR", "TIN", "BOX", "CAN"] },
-            { name: "Verbs of Movement", color: "purple", words: ["RUN", "LEAP", "WALK", "ROLL"] }
-          ]
-        },
-        {
-          id: "SAMPLE-002",
-          categories: [
-            { name: "Currency", color: "yellow", words: ["POUND", "EURO", "YEN", "RUPEE"] },
-            { name: "Birds", color: "green", words: ["CROW", "FINCH", "SWAN", "OWL"] },
-            { name: "Kitchen Items", color: "blue", words: ["PAN", "POT", "GRATER", "LADLE"] },
-            { name: "Shades of Blue", color: "purple", words: ["TEAL", "NAVY", "CYAN", "AZURE"] }
-          ]
-        }
-      ];
-    }
-
     // --- Utilities ---
     const $ = (sel, root=document) => root.querySelector(sel);
     const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
     const shuffleArray = (arr) => arr.map(v=>[Math.random(), v]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]);
     const sleep = (ms) => new Promise(r=>setTimeout(r, ms));
+    const escapeHtml = (str) => String(str).replace(/[&<>\"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]));
 
-    function keyFromWords(words) {
-      return words.slice().sort().join("|");
-    }
+    function keyFromWords(words) { return words.slice().sort().join('|'); }
 
     // --- State ---
     const state = {
       totalScore: 0,
       puzzlesSolved: 0,
       streak: 0,
-      current: null,         // current puzzle bundle
+      current: null,
       selectedIds: new Set(),
-      wrongCombos: new Set(), // keys of prior wrong submissions for this puzzle
+      wrongCombos: new Set(),
       mistakesLeft: 4,
       wrongGuesses: 0,
-      usedPuzzleIds: new Set(), // to avoid repeats within a run
+      usedPuzzleIds: new Set(),
     };
 
     // --- DOM refs ---
@@ -350,14 +263,32 @@
     const playAgainBtn = $('#playAgainBtn');
     const toastEl = $('#toast');
 
-    // --- Leaderboard storage ---
+    // --- Leaderboard storage: local fallback + Supabase ---
     const LB_KEY = 'connections_leaderboard_v1';
     const NAME_KEY = 'connections_player_name_v1';
+    const LB_TABLE = 'connections_leaderboard';
 
-    function loadLeaderboard() {
+    // Supabase init (client-side)
+    const SUPABASE_URL = window.SUPABASE_URL || '';
+    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
+    const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      : null;
+
+    // Subscribe to realtime leaderboard updates (optional but nice)
+    function subscribeLeaderboard() {
+      if (!supabase) return;
+      try {
+        supabase.channel('lb-updates')
+          .on('postgres_changes', { event: '*', schema: 'public', table: LB_TABLE }, () => renderLeaderboard())
+          .subscribe();
+      } catch (e) { console.warn('Realtime subscribe failed', e); }
+    }
+
+    function loadLeaderboardLocal() {
       try { return JSON.parse(localStorage.getItem(LB_KEY) || '[]'); } catch { return []; }
     }
-    function saveLeaderboard(list) {
+    function saveLeaderboardLocal(list) {
       localStorage.setItem(LB_KEY, JSON.stringify(list));
     }
 
@@ -375,14 +306,10 @@
 
     function renderMistakes() {
       const dots = $$('.dot', mistakesEl);
-      dots.forEach((d, i) => {
-        d.classList.toggle('live', i < state.mistakesLeft);
-      });
+      dots.forEach((d, i) => d.classList.toggle('live', i < state.mistakesLeft));
     }
 
-    function setFeedback(msg) {
-      feedbackEl.textContent = msg || '';
-    }
+    function setFeedback(msg) { feedbackEl.textContent = msg || ''; }
 
     function clearSelection() {
       state.selectedIds.clear();
@@ -391,7 +318,6 @@
     }
 
     function buildTilesFromCategories(categories) {
-      // Build unique tile objects avoiding duplicate-word collision by suffixing an index
       const tiles = [];
       const counts = new Map();
       for (const cat of categories) {
@@ -406,11 +332,12 @@
     }
 
     function chooseNextPuzzle() {
-      const pool = window.CONNECTIONS_PUZZLES;
-      if (!pool || pool.length === 0) throw new Error('No puzzles available.');
+      const pool = window.CONNECTIONS_PUZZLES || [];
+      if (!pool.length) throw new Error('No puzzles available.');
       const unseen = pool.filter(p => !state.usedPuzzleIds.has(p.id));
-      const pick = (unseen.length ? unseen : pool)[Math.floor(Math.random()* (unseen.length ? unseen.length : pool.length))];
-      if (!unseen.length) state.usedPuzzleIds.clear(); // reset if we exhausted all
+      const bag = unseen.length ? unseen : pool;
+      const pick = bag[Math.floor(Math.random()*bag.length)];
+      if (!unseen.length) state.usedPuzzleIds.clear();
       state.usedPuzzleIds.add(pick.id);
       return pick;
     }
@@ -418,10 +345,10 @@
     function colorClass(color) {
       switch((color||'').toLowerCase()) {
         case 'yellow': return 'cat-yellow';
-        case 'green': return 'cat-green';
-        case 'blue': return 'cat-blue';
+        case 'green':  return 'cat-green';
+        case 'blue':   return 'cat-blue';
         case 'purple': return 'cat-purple';
-        default: return 'cat-yellow';
+        default:       return 'cat-yellow';
       }
     }
 
@@ -466,28 +393,21 @@
         state.selectedIds.delete(id);
         btn.classList.remove('selected');
       } else {
-        if (state.selectedIds.size >= 4) return; // max 4
+        if (state.selectedIds.size >= 4) return;
         state.selectedIds.add(id);
         btn.classList.add('selected');
       }
       submitBtn.disabled = state.selectedIds.size !== 4;
     }
 
-    function getSelectedWords() {
-      return Array.from(state.selectedIds).map(id => id.split('#')[0]);
-    }
+    function getSelectedWords() { return Array.from(state.selectedIds).map(id => id.split('#')[0]); }
 
     function lockCategoryWords(words) {
-      // Mark tiles as locked and fade
       const wordSet = new Set(words.map(w => String(w).toUpperCase()));
-      $$('.tile').forEach(t => {
-        if (wordSet.has(t.dataset.word)) t.classList.add('locked');
-      });
+      $$('.tile').forEach(t => { if (wordSet.has(t.dataset.word)) t.classList.add('locked'); });
     }
 
-    function allCategoriesSolved() {
-      return state.current.solvedCats.length === 4;
-    }
+    function allCategoriesSolved() { return state.current.solvedCats.length === 4; }
 
     function anyOneAway(selSet) {
       for (const cat of state.current.unsolvedCats()) {
@@ -498,11 +418,7 @@
     }
 
     function shakeSelection() {
-      $$('.tile.selected').forEach(t => {
-        t.classList.remove('shake');
-        void t.offsetWidth; // reflow
-        t.classList.add('shake');
-      });
+      $$('.tile.selected').forEach(t => { t.classList.remove('shake'); void t.offsetWidth; t.classList.add('shake'); });
     }
 
     async function submitSelection() {
@@ -510,21 +426,18 @@
       const words = getSelectedWords();
       const key = keyFromWords(words);
 
-      // Check if already-guessed wrong combo
       if (state.wrongCombos.has(key)) {
         showToast('Already guessed this combination');
         shakeSelection();
-        return; // DO NOT consume mistake
+        return; // no penalty
       }
 
-      // Check correctness
       const match = state.current.unsolvedCats().find(cat => {
         const a = new Set(cat.words.map(w => String(w).toUpperCase()));
         return words.every(w => a.has(String(w).toUpperCase()));
       });
 
       if (match) {
-        // CORRECT
         renderSolvedRow(match);
         lockCategoryWords(match.words);
         state.current.solvedCats.push(match);
@@ -532,7 +445,6 @@
         clearSelection();
 
         if (allCategoriesSolved()) {
-          // Compute score for this puzzle
           const puzzleScore = Math.max(0, 100 - 25 * state.wrongGuesses);
           state.totalScore += puzzleScore;
           state.puzzlesSolved += 1;
@@ -543,13 +455,9 @@
         return;
       }
 
-      // INCORRECT or ONE AWAY
       const selSet = new Set(words.map(w => String(w).toUpperCase()));
       const isOneAway = anyOneAway(selSet);
-
-      // Record as a wrong combo to prevent repeated penalty
       state.wrongCombos.add(key);
-
       state.wrongGuesses += 1;
       state.mistakesLeft -= 1;
       renderMistakes();
@@ -573,7 +481,6 @@
       loseOverlay.classList.add('show');
       await sleep(2000);
       loseOverlay.classList.remove('show');
-      // Show final screen
       finalTotalScoreEl.textContent = state.totalScore;
       finalStreakEl.textContent = state.streak;
       playerNameInput.value = localStorage.getItem(NAME_KEY) || '';
@@ -597,15 +504,12 @@
       const tiles = shuffleArray(buildTilesFromCategories(p.categories));
       const solvedCats = [];
       const unsolvedCats = () => p.categories.filter(c => !solvedCats.includes(c));
-
       state.current = { id: p.id, categories: p.categories, tiles, solvedCats, unsolvedCats };
-
       renderGrid(tiles);
       updateHud();
     }
 
     function startRun() {
-      // Reset run-level state
       state.totalScore = 0;
       state.puzzlesSolved = 0;
       state.streak = 0;
@@ -615,10 +519,26 @@
       loadNextPuzzle();
     }
 
-    function renderLeaderboard() {
-      const list = loadLeaderboard();
-      list.sort((a,b) => b.score - a.score || b.streak - a.streak || a.createdAt - b.createdAt);
-      const rows = list.slice(0, 10).map((e, i) => `
+    async function fetchLeaderboard(limit=10) {
+      if (!supabase) {
+        const list = loadLeaderboardLocal();
+        list.sort((a,b) => b.score - a.score || b.streak - a.streak || a.createdAt - b.createdAt);
+        return list.slice(0, limit);
+      }
+      const { data, error } = await supabase
+        .from(LB_TABLE)
+        .select('name, score, streak, created_at')
+        .order('score', { ascending: false })
+        .order('streak', { ascending: false })
+        .order('created_at', { ascending: true })
+        .limit(limit);
+      if (error) { console.warn('Leaderboard fetch error', error); return []; }
+      return data.map(d => ({ name: d.name, score: d.score, streak: d.streak, createdAt: new Date(d.created_at).getTime() }));
+    }
+
+    async function renderLeaderboard() {
+      const rowsData = await fetchLeaderboard(10);
+      const rows = rowsData.map((e, i) => `
         <tr>
           <td>${i+1}</td>
           <td>${escapeHtml(e.name)}</td>
@@ -637,19 +557,30 @@
       $('#leaderboardTableWrap').innerHTML = table;
     }
 
-    function escapeHtml(str) {
-      return String(str).replace(/[&<>"]+/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]));
-    }
-
-    function submitScore() {
-      const name = playerNameInput.value.trim() || 'Anonymous';
+    async function submitScore() {
+      const name = (playerNameInput.value || '').trim() || 'Anonymous';
       localStorage.setItem(NAME_KEY, name);
-      const list = loadLeaderboard();
-      list.push({ name, score: state.totalScore, streak: state.streak, createdAt: Date.now() });
-      saveLeaderboard(list);
-      renderLeaderboard();
-      showToast('Score submitted!');
+
+      if (supabase) {
+        const { error } = await supabase.from(LB_TABLE).insert({ name, score: state.totalScore, streak: state.streak });
+        if (error) {
+          console.warn('Supabase insert failed', error);
+          showToast('Submit failed — saved locally.');
+          const list = loadLeaderboardLocal();
+          list.push({ name, score: state.totalScore, streak: state.streak, createdAt: Date.now() });
+          saveLeaderboardLocal(list);
+        } else {
+          showToast('Score submitted!');
+        }
+      } else {
+        const list = loadLeaderboardLocal();
+        list.push({ name, score: state.totalScore, streak: state.streak, createdAt: Date.now() });
+        saveLeaderboardLocal(list);
+        showToast('Score saved locally');
+      }
+
       gameOverModal.classList.remove('show');
+      renderLeaderboard();
     }
 
     // --- Event wiring ---
@@ -659,7 +590,7 @@
     submitScoreBtn.addEventListener('click', submitScore);
     playAgainBtn.addEventListener('click', startRun);
 
-    // Keyboard support: arrow nav and space/enter to toggle
+    // Keyboard support
     document.addEventListener('keydown', (e) => {
       const tiles = $$('.tile');
       const focusable = tiles.filter(t => !t.classList.contains('locked'));
@@ -675,8 +606,12 @@
     });
 
     // Init
-    renderLeaderboard();
-    startRun();
+    (async function init(){
+      subscribeLeaderboard();
+      await renderLeaderboard();
+      startRun();
+    })();
   </script>
 </body>
 </html>
+
