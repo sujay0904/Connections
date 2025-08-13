@@ -1,84 +1,76 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Connections — Infinite</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Connections Arcade</title>
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="app" aria-live="polite" aria-atomic="true">
-    <header>
-      <h1>Connections — Infinite</h1>
-      <div class="controls">
-        <button id="btn-shuffle" class="secondary" aria-label="Shuffle current words">Shuffle</button>
-        <button id="btn-deselect" class="secondary" aria-label="Deselect all">Clear</button>
-        <button id="btn-new" aria-label="Start a new game">New Game</button>
-        <label class="toggle" title="Everyone gets the same puzzle per day when enabled">
-          <input type="checkbox" id="daily-toggle" />
-          <span>Daily puzzle</span>
-        </label>
-        <button id="btn-change-player" class="secondary" aria-label="Change player">Change name</button>
-        <a href="#leaderboard" class="secondary btn-link" aria-label="Jump to leaderboard">Leaderboard ↓</a>
-      </div>
-    </header>
+  <header class="topbar">
+    <h1>Connections Arcade</h1>
+    <div class="controls">
+      <button id="btn-new" class="btn">New game</button>
+      <button id="btn-change-player" class="btn">Change player</button>
+      <button id="lb-refresh" class="btn btn-ghost">Refresh leaderboard</button>
+      <label class="note" id="today-note"></label>
+    </div>
+  </header>
 
-    <div class="statusbar">
-      <div id="status-text">Find four groups of four.</div>
-      <div style="margin-left:auto; display:flex; align-items:center; gap:6px">
-        <span>Strikes:</span>
-        <div class="strike" id="s1"></div>
-        <div class="strike" id="s2"></div>
-        <div class="strike" id="s3"></div>
-        <div class="strike" id="s4"></div>
+  <main class="wrap">
+    <div class="status">
+      <span id="status-text">Solved 0/4 · Strikes 0/4</span>
+    </div>
+
+    <!-- Game grid + solved groups render here -->
+    <section id="game" class="game"></section>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Player Gate (overlay) -->
+    <div id="player-gate" class="gate" style="display:none;">
+      <div class="gate-card">
+        <h2>Select a player</h2>
+        <div class="field">
+          <label for="player-select">Players</label>
+          <select id="player-select"></select>
+        </div>
+
+        <div id="new-name-field" class="field" style="display:none;">
+          <label for="new-player-name">New player name</label>
+          <input id="new-player-name" type="text" maxlength="24" placeholder="Type a name…" />
+        </div>
+
+        <button id="gate-continue" class="btn btn-primary">Continue</button>
       </div>
     </div>
 
-    <main id="game"></main>
-
-    <section id="leaderboard" aria-label="Leaderboard" class="leaderboard">
-      <div class="board">
-        <div class="board-head">
-          <h2>Today <small id="today-note">(UTC)</small></h2>
-          <button id="lb-refresh" class="secondary" aria-label="Refresh leaderboard">Refresh</button>
-        </div>
-        <ol id="lb-today" class="lb-list" start="1"></ol>
-        <div id="lb-today-empty" class="lb-empty" hidden>No scores yet today.</div>
+    <!-- Leaderboards -->
+    <section class="leaderboards">
+      <div class="lb">
+        <h3>Top (Arcade)</h3>
+        <ul id="lb-today" class="lb-list"></ul>
+        <div id="lb-today-empty" class="lb-empty">No scores yet.</div>
       </div>
-      <div class="board">
-        <div class="board-head">
-          <h2>All‑time</h2>
-        </div>
-        <ol id="lb-alltime" class="lb-list" start="1"></ol>
-        <div id="lb-all-empty" class="lb-empty" hidden>No scores yet.</div>
+      <div class="lb">
+        <h3>All-time (Arcade)</h3>
+        <ul id="lb-alltime" class="lb-list"></ul>
+        <div id="lb-all-empty" class="lb-empty">No scores yet.</div>
       </div>
     </section>
+  </main>
 
-    <p class="footer">Tip: Toggle <em>Daily puzzle</em> to sync a seed so everyone gets the same board for the day (UTC). New Game still re‑seeds. Scores = <code>100 − (20 × strikes)</code>; only submitted on a full solve.</p>
-  </div>
+  <!-- Hidden daily toggle (not used in arcade, but referenced safely) -->
+  <input type="checkbox" id="daily-toggle" hidden />
 
-  <!-- Player Gate (blocks the app until a player is chosen) -->
-  <section class="gate" id="player-gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
-    <div class="gate-card">
-      <h2 id="gate-title">Choose your name</h2>
-      <p class="muted">Select an existing player or add a new one.</p>
+  <!-- Supabase creds (set yours here) -->
+  <script>
+    window.SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+    window.SUPABASE_ANON_KEY = 'YOUR_PUBLIC_ANON_KEY';
+  </script>
 
-      <label class="field">Player
-        <select id="player-select" aria-label="Select player"></select>
-      </label>
-
-      <label class="field" id="new-name-field" hidden>New name
-        <input id="new-player-name" placeholder="e.g., Ruben" maxlength="24" aria-label="New player name" />
-      </label>
-
-      <div class="row">
-        <button id="gate-continue" aria-label="Continue">Continue</button>
-      </div>
-    </div>
-  </section>
-
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-  <script type="module" src="app.js"></script>
+  <!-- App -->
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
