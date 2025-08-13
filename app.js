@@ -13,119 +13,174 @@ import { CATS } from './cats.js';
 export const SUPABASE_URL = 'https://tralparxinmltofaiclh.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRyYWxwYXJ4aW5tbHRvZmFpY2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5MTcxOTAsImV4cCI6MjA3MDQ5MzE5MH0.Y0wV1-nHtFihiRw5xokkNYa9dxCRfMYhlMQpTm_p4Gw';
 
-// Connections — Infinite (seeded/random) + Name Gate & Live Leaderboard
-// Clean, single source of truth (no duplicates)
-
-// === Arcade scoring constants (tweak to taste) ===
-const POINTS_PER_PUZZLE = 100;
-const STRIKE_PENALTY = 25;   // optional: set to 0 if you don't want point loss
-const MAX_STRIKES = 4;       // lose when strikes reach MAX_STRIKES
+// Connections Arcade — single-session scoring with manual Submit
+// Replaces auto-submit "daily" mode with continuous puzzles until strikes run out.
+// Paste your Supabase URL/ANON KEY below, or keep your existing values.
 
 let supabase = null;
 async function initSupabase(){
   if(!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
-  try{ const mod = await import('https://esm.sh/@supabase/supabase-js@2'); supabase = mod.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
-  catch(err){ console.warn('Supabase SDK failed to load:', err); }
+  try{
+    const mod = await import('https://esm.sh/@supabase/supabase-js@2');
+    supabase = mod.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.supabase = supabase; // for DevTools diagnostics
+  }catch(err){
+    console.warn('Supabase SDK failed to load:', err);
+  }
 }
 
-// ---- Utils ----------------------------------------------------------------
+// ===== Utils =====
 function mulberry32(a){ return function(){ let t=a+=0x6D2B79F5; t=Math.imul(t^(t>>>15), t|1); t^=t+Math.imul(t^(t>>>7), t|61); return ((t^(t>>>14))>>>0)/4294967296; } }
 function hashString(str){ let h=2166136261>>>0; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
 function rngFromSeed(seed){ return mulberry32(seed>>>0); }
-function shuffleSeeded(arr, rnd){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+function shuffleSeeded(arr, rnd){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function sampleNSeeded(arr, n, rnd){ return shuffleSeeded(arr, rnd).slice(0,n); }
-function todayISO(){ return new Date().toISOString().slice(0,10); } // UTC
+function todayISO(){ return new Date().toISOString().slice(0,10); }
 function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
-const storage = { get(k,d=null){ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch{ return d; } }, set(k,v){ localStorage.setItem(k, JSON.stringify(v)); } };
+const storage = {
+  get(k,d=null){ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch{ return d; } },
+  set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} },
+  del(k){ try{ localStorage.removeItem(k); }catch{} }
+};
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-// ---- DOM ------------------------------------------------------------------
-const elGame = document.getElementById('game');
-const elStatus = document.getElementById('status-text');
-const elToast = document.getElementById('toast');
-const elLbToday = document.getElementById('lb-today');
-const elLbAll = document.getElementById('lb-alltime');
+// ===== DOM =====
+const elGame       = document.getElementById('game');
+const elStatus     = document.getElementById('status-text');
+const elToast      = document.getElementById('toast');
+const elLbToday    = document.getElementById('lb-today');
+const elLbAll      = document.getElementById('lb-alltime');
 const elLbTodayEmpty = document.getElementById('lb-today-empty');
-const elLbAllEmpty = document.getElementById('lb-all-empty');
-const elLbRefresh = document.getElementById('lb-refresh');
-const elTodayNote = document.getElementById('today-note');
+const elLbAllEmpty   = document.getElementById('lb-all-empty');
+const elLbRefresh  = document.getElementById('lb-refresh');
+const elTodayNote  = document.getElementById('today-note');
 
-// Controls
-document.getElementById('btn-shuffle').addEventListener('click', ()=>{ shufflePool(); toast('Shuffled'); });
-document.getElementById('btn-deselect').addEventListener('click', ()=>{ clearSel(); });
-document.getElementById('btn-new').addEventListener('click', ()=>{ newGame(); });
-document.getElementById('daily-toggle').addEventListener('change', (e)=>{ state.daily=!!e.target.checked; elTodayNote.textContent='(UTC)'; newGame(); });
-elLbRefresh.addEventListener('click', ()=>{ loadLeaderboards(); });
+document.getElementById('btn-new')?.addEventListener('click', ()=>{ startArcadeSession(); loadFirstPuzzle(); });
+document.getElementById('daily-toggle')?.addEventListener('change', ()=>{ /* no-op in arcade */ });
+elLbRefresh?.addEventListener('click', ()=>{ loadLeaderboards(); });
 
-// ---- Player gate ----------------------------------------------------------
-const elGate = document.getElementById('player-gate');
-const elSelect = document.getElementById('player-select');
+// Player gate
+const elGate     = document.getElementById('player-gate');
+const elSelect   = document.getElementById('player-select');
 const elNewField = document.getElementById('new-name-field');
 const elNewInput = document.getElementById('new-player-name');
-const elGateGo = document.getElementById('gate-continue');
-document.getElementById('btn-change-player').addEventListener('click', ()=> openGate());
+const elGateGo   = document.getElementById('gate-continue');
+document.getElementById('btn-change-player')?.addEventListener('click', ()=> openGate());
 
-// ---- State ----------------------------------------------------------------
+// ===== Scoring constants (tweak to taste) =====
+const POINTS_PER_PUZZLE = 100;
+const STRIKE_PENALTY    = 0;   // set to 25 if you want point loss for strikes
+const MAX_STRIKES       = 4;
+
+// ===== State =====
 const tiersOrder = ['y','g','b','p'];
 const tierClass = t => ({y:'tier-y',g:'tier-g',b:'tier-b',p:'tier-p'})[t] || 'tier-y';
-let state = { player: storage.get('player', null),current:null, pool:[], solved:[], selected:new Set(), strikes:0, daily:false, session: null, player:null, startedAt:0,  };
-let playersCache = [];
 
-// ---- Players --------------------------------------------------------------
+let state = {
+  player: null,
+  current: null,        // current puzzle: {sets, words, wordToTitle, tiers}
+  pool: [],
+  solved: [],
+  selected: new Set(),
+  strikes: 0,
+  startedAt: 0,
+  session: null         // { id, startedAt, startedWall, endedAt, totalScore, puzzlesSolved, strikesUsed, isOver, submitted }
+};
+
+// ===== Players (cloud + local) =====
 async function fetchPlayers(){
   if(!supabase) return storage.get('players', []);
-  try{ const { data, error } = await supabase.from('players').select('id,name').order('name'); if(error) throw error; return data; }
-  catch(err){ console.warn('fetchPlayers error:', err); return []; }
+  try{
+    const { data, error } = await supabase.from('players').select('id,name').order('name');
+    if(error) throw error;
+    return data;
+  }catch(err){
+    console.warn('fetchPlayers error:', err);
+    return storage.get('players', []);
+  }
 }
 function getSavedPlayer(){ return storage.get('player', null); }
-function getPlayerById(id){ return playersCache.find(p=>p.id===id) || null; }
+function getPlayerById(id){ return (window.__playersCache||[]).find(p=>p.id===id) || null; }
 async function upsertPlayer(name){
-  name = (name||'').trim().slice(0,24); if(!name) return null;
+  name = (name||'').trim().slice(0,24);
+  if(!name) return null;
+
   if(!supabase){
     let players = storage.get('players', []);
-    let p = players.find(x=>x.name.toLowerCase()===name.toLowerCase());
-    if(!p){ p = { id: (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())), name }; players.push(p); storage.set('players', players); }
-    storage.set('player', p); return p;
+    if(!players.find(p=>p.name.toLowerCase()===name.toLowerCase())){
+      const id = 'local_' + Math.random().toString(36).slice(2);
+      players.push({ id, name });
+      storage.set('players', players);
+    }
+    return players.find(p=>p.name.toLowerCase()===name.toLowerCase()) || null;
   }
-  try{ const { data, error } = await supabase.from('players').upsert({ name }, { onConflict:'name' }).select().single(); if(error) throw error; storage.set('player', data); return data; }
-  catch(err){ console.warn('upsertPlayer error:', err); return null; }
+
+  const { data, error } = await supabase.from('players').upsert({ name }, { onConflict:'name' }).select().single();
+  if(error){ console.warn('upsertPlayer error:', error); return null; }
+  return data;
 }
-async function refreshPlayers(){ playersCache = await fetchPlayers(); }
-function validateGate(){ const val = elSelect.value; const ok = (val && val !== '__add__') || (val==='__add__' && elNewInput.value.trim().length>0); elGateGo.disabled = !ok; }
-async function populatePlayerSelect(){
-  await refreshPlayers();
+
+async function refreshPlayers(){
+  const players = await fetchPlayers();
+  window.__playersCache = players;
+  populatePlayerSelect(players);
+}
+
+function populatePlayerSelect(players){
+  elSelect.innerHTML = '';
   const saved = getSavedPlayer();
-  const opts = playersCache.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`);
-  opts.push(`<option value="__add__">➕ Add new player…</option>`);
-  elSelect.innerHTML = opts.join('');
-  if(saved){ const match = playersCache.find(p=>p.id===saved.id) || playersCache.find(p=>p.name.toLowerCase()===saved.name?.toLowerCase()); if(match) elSelect.value = match.id; }
-  if(playersCache.length===0){ elSelect.value='__add__'; elNewField.hidden=false; elNewInput.focus(); }
-  else { elNewField.hidden = (elSelect.value !== '__add__'); }
-  startArcadeSession();
-  loadFirstPuzzle();
-  validateGate();
+  for(const p of players){
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    if(saved && saved.id === p.id) opt.selected = true;
+    elSelect.appendChild(opt);
+  }
+  const add = document.createElement('option');
+  add.value = '__add__';
+  add.textContent = '➕ Add new player…';
+  elSelect.appendChild(add);
+  elNewField.style.display = 'none';
 }
-function openGate(){ elGate.hidden=false; elGate.style.removeProperty('display'); elGate.setAttribute('aria-hidden','false'); document.body.classList.add('no-scroll'); populatePlayerSelect(); }
-function closeGate(){ elGate.hidden=true; elGate.setAttribute('aria-hidden','true'); document.body.classList.remove('no-scroll'); elGate.style.display='none'; }
-elSelect.addEventListener('change', ()=>{ const add=elSelect.value==='__add__'; elNewField.hidden=!add; if(add) elNewInput.focus(); validateGate(); });
-elNewInput.addEventListener('input', ()=> validateGate());
-elNewInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ elGateGo.click(); } });
-elGateGo.addEventListener('click', async ()=>{
-  if(elGateGo.disabled) return; elGateGo.disabled = true;
-  const val = elSelect.value; let player=null;
-  if(val==='__add__'){ const name = elNewInput.value.trim(); if(!name){ elNewInput.focus(); elGateGo.disabled=false; return; } player = await upsertPlayer(name); await refreshPlayers(); }
-  else { player = getPlayerById(val); if(player) storage.set('player', player); }
-  if(!player){ elGateGo.disabled=false; return; }
-  state.player = player; closeGate(); await loadLeaderboards(); toast(`Hello, ${player.name}!`); newGame(); elGateGo.disabled=false;
+
+function openGate(){
+  elGate.style.display = 'block';
+  refreshPlayers();
+}
+function closeGate(){
+  elGate.style.display = 'none';
+}
+
+elSelect?.addEventListener('change', (e)=>{
+  elNewField.style.display = (e.target.value==='__add__') ? 'block' : 'none';
 });
 
-//session
+elGateGo?.addEventListener('click', async ()=>{
+  if(elGateGo.disabled) return;
+  elGateGo.disabled = true;
+  let player = null;
+  const val = elSelect.value;
+  if(val === '__add__'){
+    const name = elNewInput.value.trim();
+    player = await upsertPlayer(name);
+    await refreshPlayers();
+  }else{
+    player = getPlayerById(val);
+  }
+  if(!player){ elGateGo.disabled=false; return; }
+  state.player = player;
+  storage.set('player', player);
+  closeGate();
+  await loadLeaderboards();
+  toast(`Hello, ${player.name}!`);
+  startArcadeSession();
+  loadFirstPuzzle();
+  elGateGo.disabled = false;
+});
 
-function newSessionId() {
-  // Use crypto if available; otherwise a timestamp-based fallback
-  return (crypto?.randomUUID?.() || `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`);
-}
-
-function startArcadeSession() {
+// ===== Session lifecycle =====
+function newSessionId(){ return (crypto?.randomUUID?.() || `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`); }
+function startArcadeSession(){
   state.session = {
     id: newSessionId(),
     startedAt: performance.now(),
@@ -135,195 +190,373 @@ function startArcadeSession() {
     puzzlesSolved: 0,
     strikesUsed: 0,
     isOver: false,
-    submitted: false,
+    submitted: false
   };
   renderHUD();
 }
-
-function awardPuzzleSolved() {
-  if (!state.session || state.session.isOver) return;
+function awardPuzzleSolved(){
+  if(!state.session || state.session.isOver) return;
   state.session.puzzlesSolved += 1;
   state.session.totalScore += POINTS_PER_PUZZLE;
   renderHUD();
 }
-
-function registerStrike() {
-  if (!state.session || state.session.isOver) return;
+function registerStrike(){
+  if(!state.session || state.session.isOver) return;
   state.session.strikesUsed += 1;
-  if (STRIKE_PENALTY) state.session.totalScore = Math.max(0, state.session.totalScore - STRIKE_PENALTY);
+  if(STRIKE_PENALTY) state.session.totalScore = Math.max(0, state.session.totalScore - STRIKE_PENALTY);
   renderHUD();
-  if (state.session.strikesUsed >= MAX_STRIKES) {
+  if(state.session.strikesUsed >= MAX_STRIKES){
     endArcadeSession('out-of-strikes');
   }
 }
-
-function endArcadeSession(reason = 'ended') {
-  if (!state.session || state.session.isOver) return;
+function endArcadeSession(reason='ended'){
+  if(!state.session || state.session.isOver) return;
   state.session.isOver = true;
   state.session.endedAt = performance.now();
-  // Show game-over UI
   showGameOver();
   renderHUD();
 }
-
-function sessionDurationMs() {
-  if (!state.session) return 0;
+function sessionDurationMs(){
+  if(!state.session) return 0;
   const end = state.session.isOver ? state.session.endedAt : performance.now();
   return Math.round(end - state.session.startedAt);
 }
-
-function renderHUD() {
-  // Update any counters you show on screen; customise selectors to your UI
-  const elScore = document.getElementById('hudScore');
-  const elSolved = document.getElementById('hudSolved');
+function renderHUD(){
+  const elScore   = document.getElementById('hudScore');
+  const elSolved  = document.getElementById('hudSolved');
   const elStrikes = document.getElementById('hudStrikes');
-  if (elScore)   elScore.textContent = `${state.session?.totalScore ?? 0}`;
-  if (elSolved)  elSolved.textContent = `${state.session?.puzzlesSolved ?? 0}`;
-  if (elStrikes) elStrikes.textContent = `${state.session?.strikesUsed ?? 0}/${MAX_STRIKES}`;
-
-  // Toggle submit button visibility on game over
+  if(elScore)   elScore.textContent  = String(state.session?.totalScore ?? 0);
+  if(elSolved)  elSolved.textContent = String(state.session?.puzzlesSolved ?? 0);
+  if(elStrikes) elStrikes.textContent = `${state.session?.strikesUsed ?? 0}/${MAX_STRIKES}`;
   const submitBtn = document.getElementById('submitScoreBtn');
-  if (submitBtn) submitBtn.style.display = state.session?.isOver ? 'inline-flex' : 'none';
+  if(submitBtn) submitBtn.style.display = state.session?.isOver ? 'inline-flex' : 'none';
 }
 
+// ===== Puzzle generation =====
+function makeRng(){
+  // simple per-puzzle randomness
+  return rngFromSeed(Math.floor(Math.random()*1e9));
+}
+function generatePuzzle(){
+  const rnd = makeRng();
+  const tiers = shuffleSeeded(tiersOrder, rnd);
+  for(let attempt=0; attempt<40; attempt++){
+    const pickedCats = sampleNSeeded(CATS, 4, rnd);
+    const sets = [];
+    const used = new Set();
+    let ok = true;
+    for(let i=0;i<4;i++){
+      const c = pickedCats[i];
+      const words = sampleNSeeded(c.words, 4, rnd);
+      for(const w of words){
+        if(used.has(w)){ ok=false; break; }
+        used.add(w);
+      }
+      if(!ok) break;
+      sets.push({ title: c.title, words, tier: tiers[i] });
+    }
+    if(ok){
+      const words = [];
+      const wordToTitle = new Map();
+      sets.forEach(s => s.words.forEach(w => { words.push(w); wordToTitle.set(w, s.title); }));
+      return { tiers, sets, words, wordToTitle };
+    }
+  }
+  // fallback
+  const pickedCats = sampleNSeeded(CATS, 4, rnd);
+  const sets = pickedCats.map((c,i)=>({ title:c.title, words: c.words.slice(0,4), tier: tiers[i%4] }));
+  const words = [];
+  const wordToTitle = new Map();
+  sets.forEach(s => s.words.forEach(w => { words.push(w); wordToTitle.set(w, s.title); }));
+  return { tiers, sets, words, wordToTitle };
+}
 
-// ---- Leaderboard ----------------------------------------------------------
-function computeScore(strikes){ return 100 - (20 * clamp(strikes,0,4)); }
-async function submitScore({ score, strikes, durationMs, mode }) {
-  if (!state?.player) {
-    toast('Pick a player first');
-    return { ok: false, where: 'none', reason: 'no-player' };
+// ===== Game rendering & logic =====
+function updateStatus(){
+  elStatus.textContent = `Solved ${state.solved.length}/4 · Strikes ${state.strikes}/${MAX_STRIKES}`;
+}
+function clearSel(){ state.selected.clear(); }
+function toggle(word){
+  if(state.solved.length===4) return;
+  if(state.selected.has(word)) state.selected.delete(word);
+  else{
+    if(state.selected.size>=4) return;
+    state.selected.add(word);
+  }
+  updateStatus();
+  render();
+}
+
+function render(){
+  elGame.innerHTML = '';
+  // solved blocks
+  for(const g of state.solved){
+    const block = document.createElement('div');
+    block.className = 'group ' + tierClass(g.tier);
+    const title = document.createElement('div');
+    title.className = 'group-title';
+    title.textContent = `${g.title} (${g.tier.toUpperCase()})`;
+    block.appendChild(title);
+    const row = document.createElement('div');
+    row.className = 'group-words';
+    g.words.forEach(w=>{
+      const c = document.createElement('div');
+      c.className = 'chip';
+      c.textContent = w;
+      row.appendChild(c);
+    });
+    block.appendChild(row);
+    elGame.appendChild(block);
   }
 
-  const date = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
-  const rowBase = {
-    date,
-    mode,                          // 'daily' | 'random'
-    score,
-    strikes,
-    duration_ms: durationMs,
+  if(state.solved.length===4){
+    elStatus.textContent = 'Perfect! You solved them all.';
+    return;
+  }
+
+  // grid of current words
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  for(const w of state.pool){
+    const btn = document.createElement('button');
+    btn.className = 'tile' + (state.selected.has(w) ? ' sel':'');
+    btn.textContent = w;
+    btn.addEventListener('click', ()=> toggle(w));
+    grid.appendChild(btn);
+  }
+  elGame.appendChild(grid);
+}
+
+function liRow(idx, name, score, timeMs){
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="pos">${idx}</span> <span class="name">${escapeHtml(name)}</span> <span class="score">${score}</span> <span class="time">${Math.round(timeMs/1000)}s</span>`;
+  return li;
+}
+
+async function check(){
+  if(state.selected.size!==4) return;
+  const chosen = [...state.selected];
+  const title  = state.current.wordToTitle.get(chosen[0]);
+  const allSame = chosen.every(w => state.current.wordToTitle.get(w) === title);
+  if(allSame){
+    // success: add solved set with its tier
+    const set = state.current.sets.find(s => s.title === title);
+    state.solved.push({ title, words: set.words.slice(), tier: set.tier });
+    // remove from pool
+    state.pool = state.pool.filter(w => !set.words.includes(w));
+    clearSel();
+    updateStatus();
+    render();
+    // if puzzle finished, score and load next
+    if(state.solved.length === 4){
+      toast('Perfect! Puzzle cleared.');
+      awardPuzzleSolved();
+      loadNextPuzzle();
+    }
+  }else{
+    // wrong guess
+    state.strikes += 1;
+    registerStrike();
+    // small shake feedback via class, if you have CSS
+    elGame.classList.add('shake'); setTimeout(()=> elGame.classList.remove('shake'), 300);
+    clearSel();
+    updateStatus();
+    render();
+    if(state.strikes >= MAX_STRIKES){
+      revealAll();
+      endArcadeSession('out-of-strikes');
+    }
+  }
+}
+
+function revealAll(){
+  const found = new Set(state.solved.map(s=>s.title));
+  for(const s of state.current.sets){ if(!found.has(s.title)) state.solved.push({ title:s.title, words:s.words.slice(), tier:s.tier }); }
+  render();
+  elStatus.textContent = 'Out of strikes — puzzle revealed.';
+}
+
+function loadFirstPuzzle(){
+  state.strikes = 0;
+  state.selected.clear();
+  state.solved = [];
+  state.current = generatePuzzle();
+  state.pool = shuffleSeeded(state.current.words.slice(), rngFromSeed(Math.random() * 1e9));
+  state.startedAt = performance.now();
+  updateStatus();
+  render();
+  toast('Good luck!');
+}
+
+function loadNextPuzzle(){
+  // carry over strikes in arcade
+  state.selected.clear();
+  state.solved = [];
+  state.current = generatePuzzle();
+  state.pool = shuffleSeeded(state.current.words.slice(), rngFromSeed(Math.random() * 1e9));
+  state.startedAt = performance.now();
+  updateStatus();
+  render();
+  toast('Next puzzle!');
+}
+
+// ===== Leaderboards =====
+async function loadLeaderboards(){
+  try{
+    if(supabase){
+      // Prefer a view if present; otherwise join client-side
+      let { data, error } = await supabase
+        .from('scores_with_names')
+        .select('*')
+        .eq('mode','arcade')
+        .order('score',{ascending:false})
+        .order('duration_ms',{ascending:true})
+        .limit(50);
+      if(error){
+        // fallback to scores + fetch names
+        const res = await supabase
+          .from('scores')
+          .select('player_id,score,duration_ms,created_at,mode')
+          .eq('mode','arcade')
+          .order('score',{ascending:false})
+          .order('duration_ms',{ascending:true})
+          .limit(50);
+        if(res.error) throw res.error;
+        const rows = res.data;
+        // fetch players map
+        const { data: players } = await supabase.from('players').select('id,name');
+        const map = new Map((players||[]).map(p=>[p.id,p.name]));
+        data = rows.map(r=>({ ...r, name: map.get(r.player_id)||('Player ' + String(r.player_id).slice(0,4)) }));
+      }
+      renderLeaderboard(data||[], data||[]);
+      return;
+    }
+  }catch(err){
+    console.warn('loadLeaderboards cloud error → local fallback:', err);
+  }
+
+  const scores = storage.get('scores', []).filter(s=>s.mode==='arcade');
+  const sorted = scores.slice().sort((a,b)=>
+    (b.score - a.score) || (a.duration_ms - b.duration_ms) || (new Date(a.created_at) - new Date(b.created_at))
+  );
+  renderLeaderboard(sorted.slice(0,10), sorted.slice(0,20));
+  toast('Showing local leaderboard (cloud unavailable).');
+}
+
+function renderLeaderboard(todayList, allList){
+  if(elLbToday){
+    elLbToday.innerHTML = '';
+    (todayList||[]).forEach((r,i)=> elLbToday.appendChild(liRow(i+1, r.name||'Player', r.score, r.duration_ms||0)));
+    if(elLbTodayEmpty) elLbTodayEmpty.hidden = (todayList||[]).length>0;
+  }
+  if(elLbAll){
+    elLbAll.innerHTML = '';
+    (allList||[]).forEach((r,i)=> elLbAll.appendChild(liRow(i+1, r.name||'Player', r.score, r.duration_ms||0)));
+    if(elLbAllEmpty) elLbAllEmpty.hidden = (allList||[]).length>0;
+  }
+}
+
+// ===== Submit (manual) =====
+async function submitArcadeScore(){
+  if(!state?.player){ toast('Pick a player first'); return; }
+  if(!state?.session?.isOver){ toast('Finish the game first'); return; }
+  if(state.session.submitted){ toast('Already submitted'); return; }
+
+  const payload = {
+    date: todayISO(),
+    mode: 'arcade',
+    score: state.session.totalScore,
+    strikes: state.session.strikesUsed,
+    duration_ms: sessionDurationMs(),
     created_at: new Date().toISOString(),
   };
 
-  // Local fallback
   const saveLocal = () => {
-    try {
-      const list = storage.get('scores', []);
-      list.push({ ...rowBase, player_id: state.player.id, name: state.player.name });
-      storage.set('scores', list);
-      localStorage.setItem('__scores_ping__', String(Date.now()));
-    } catch {/* ignore */}
-    return { ok: true, where: 'local' };
+    const list = storage.get('scores', []);
+    list.push({ ...payload, player_id: state.player.id, name: state.player.name });
+    storage.set('scores', list);
+    localStorage.setItem('__scores_ping__', String(Date.now()));
+    state.session.submitted = true;
+    toast(`Saved locally: ${payload.score} pts`);
   };
 
-  // If Supabase client isn't available, save locally
-  if (!supabase) return saveLocal();
+  if(!supabase){ saveLocal(); return; }
 
-  try {
-    // 1) Ensure we use the server's player ID (avoids UUID/BIGINT mismatches)
-    const up = await supabase
-      .from('players')
-      .upsert({ name: state.player.name }, { onConflict: 'name' })
-      .select()
-      .single();
-    if (up.error) throw up.error;
-
-    // Sync state with canonical player row from DB
+  try{
+    const up = await supabase.from('players').upsert({ name: state.player.name }, { onConflict:'name' }).select().single();
+    if(up.error) throw up.error;
     state.player = up.data;
     storage.set('player', up.data);
 
-    // 2) Try to write the score
-    const payload = { player_id: up.data.id, ...rowBase };
+    const res = await supabase.from('scores').insert({ ...payload, player_id: up.data.id }).select().single();
+    if(res.error) throw res.error;
 
-    // Prefer upsert if you have a unique index on (player_id, date, mode)
-    let res = await supabase
-      .from('scores')
-      .upsert(payload, { onConflict: 'player_id,date,mode' })
-      .select()
-      .single();
-
-    // If the unique index isn't created yet, fall back to plain insert
-    if (res.error && /unique|constraint|on conflict/i.test(res.error.message || '')) {
-      res = await supabase.from('scores').insert(payload).select().single();
-    }
-
-    if (res.error) throw res.error;
-    return { ok: true, where: 'cloud', data: res.data };
-  } catch (e) {
-    console.error('Cloud save failed → saving locally:', e);
-    return saveLocal();
+    state.session.submitted = true;
+    toast(`Submitted (cloud): ${payload.score} pts`);
+    await loadLeaderboards();
+  }catch(e){
+    console.error('Score insert failed → local fallback', e);
+    saveLocal();
   }
 }
 
-async function loadLeaderboards(){
-  if(!supabase){
-    const scores = storage.get('scores', []); const today = todayISO();
-    const todayList = scores.filter(s=>s.date===today).sort((a,b)=> b.score-a.score || a.duration_ms-b.duration_ms).slice(0,10);
-    const allList = scores.slice().sort((a,b)=> b.score-a.score || a.duration_ms-b.duration_ms).slice(0,20);
-    renderLeaderboard(todayList, allList); return;
+// ===== Game Over bar (created dynamically) =====
+(function ensureGameOverBar(){
+  if(document.getElementById('gameOverBar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'gameOverBar';
+  bar.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:12px;';
+  bar.innerHTML = `
+    <button id="submitScoreBtn" style="display:none;">Submit score</button>
+    <button id="newGameBtn">New game</button>
+    <span id="gameOverNote" style="opacity:.7;"></span>
+    <div id="hud" style="margin-left:auto;opacity:.9;">Score: <strong id="hudScore">0</strong> · Solved: <strong id="hudSolved">0</strong> · Strikes: <strong id="hudStrikes">0/${MAX_STRIKES}</strong></div>
+  `;
+  (document.getElementById('game')?.parentElement || document.body).appendChild(bar);
+})();
+function showGameOver(){
+  const note = document.getElementById('gameOverNote');
+  if(note && state.session){
+    note.textContent = `Game over — ${state.session.puzzlesSolved} solved · ${state.session.strikesUsed} strikes · ${Math.round(sessionDurationMs()/1000)}s`;
   }
-  try{
-    const { data:todayData, error:err1 } = await supabase.from('scores_with_names').select('*').eq('date', todayISO()).order('score', { ascending:false }).order('duration_ms', { ascending:true }).limit(50);
-    if(err1) throw err1;
-    const { data:allData, error:err2 } = await supabase.from('scores_with_names').select('*').order('score', { ascending:false }).order('duration_ms', { ascending:true }).limit(200);
-    if(err2) throw err2;
-    renderLeaderboard(todayData||[], allData||[]);
-  }catch(err){
-    console.warn('loadLeaderboards cloud error → local fallback:', err);
-    const scores = storage.get('scores', []); const today = todayISO();
-    const todayList = scores.filter(s=>s.date===today).sort((a,b)=> b.score-a.score || a.duration_ms-b.duration_ms).slice(0,10);
-    const allList = scores.slice().sort((a,b)=> b.score-a.score || a.duration_ms-b.duration_ms).slice(0,20);
-    renderLeaderboard(todayList, allList);
-    toast('Showing local leaderboard (cloud unavailable).');
+  const submitBtn = document.getElementById('submitScoreBtn');
+  if(submitBtn) submitBtn.style.display = 'inline-flex';
+}
+document.addEventListener('click', (e)=>{
+  if(e.target?.id==='newGameBtn'){
+    startArcadeSession();
+    loadFirstPuzzle();
+  }else if(e.target?.id==='submitScoreBtn'){
+    submitArcadeScore();
   }
-}
-function renderLeaderboard(todayList, allList){ elLbToday.innerHTML = todayList.map(liRow).join(''); elLbAll.innerHTML = allList.map(liRow).join(''); elLbTodayEmpty.hidden = todayList.length>0; elLbAllEmpty.hidden = allList.length>0; }
-function liRow(row){ const name = row.name || (row.player?.name) || '—'; const secs = row.duration_ms != null ? Math.round(row.duration_ms/1000) : null; const meta = [ `${row.score ?? row.total} pts`, secs!=null? `${secs}s` : null, row.mode? String(row.mode).toUpperCase():null ].filter(Boolean).join(' · '); return `<li><span class="lb-name">${escapeHtml(name)}</span><span class="lb-meta">${meta}</span></li>`; }
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
-function startLiveUpdates(){ if(supabase){ try{ supabase.channel('scores-live').on('postgres_changes',{event:'INSERT',schema:'public',table:'scores'},()=>loadLeaderboards()).subscribe(); }catch(err){ console.warn('Realtime subscribe error:', err); } } else { window.addEventListener('storage', (e)=>{ if(e.key==='scores' || e.key==='__scores_ping__') loadLeaderboards(); }); } }
+});
 
-// ---- Puzzle generation ----------------------------------------------------
-function todaysSeed(){ return hashString('connections:'+todayISO()); }
-function makeRng(){ const seed = state.daily ? todaysSeed() : Math.floor(Math.random()*2**32); return rngFromSeed(seed); }
-function pickUniqueWords(bank, used, rnd, n=4){ const pool = bank.filter(w => !used.has(w)); if(pool.length < n) return null; return sampleNSeeded(pool, n, rnd); }
-function generatePuzzle(){
-  const rnd = makeRng(); const tiers = shuffleSeeded(tiersOrder, rnd);
-  for(let attempt=0; attempt<40; attempt++){
-    const pickedCats = sampleNSeeded(CATS, 4, rnd); const sets = []; const used = new Set(); let ok = true;
-    for(let i=0;i<4;i++){ const c = pickedCats[i]; const words = pickUniqueWords(c.bank, used, rnd, 4); if(!words){ ok=false; break; } words.forEach(w=>used.add(w)); sets.push({ title:c.title, words, tier: tiers[i] }); }
-    if(ok){ const words = []; const wordToTitle = new Map(); sets.forEach(s=> s.words.forEach(w=>{ words.push(w); wordToTitle.set(w, s.title); })); return { tiers, sets, words, wordToTitle }; }
-  }
-  const pickedCats = sampleNSeeded(CATS, 4, rnd); const sets = pickedCats.map((c, idx)=>({ title:c.title, words:sampleNSeeded(c.bank, 4, rnd), tier:tiers[idx] })); const words = []; const wordToTitle = new Map(); sets.forEach(s=> s.words.forEach(w=>{ words.push(w); wordToTitle.set(w, s.title); })); return { tiers, sets, words, wordToTitle };
+// ===== Toast =====
+let toastTimer=null;
+function toast(msg){
+  if(!elToast) return;
+  elToast.textContent = msg;
+  elToast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> elToast.classList.remove('show'), 1800);
 }
 
-// ---- Render & gameplay ----------------------------------------------------
-function toast(msg){ elToast.textContent = msg; elToast.classList.add('show'); setTimeout(()=>elToast.classList.remove('show'), 1200); }
-function updateStatus(){ const s=state.selected.size; elStatus.textContent = s===0? 'Find four groups of four.' : `Selected ${s}/4`; for(let i=1;i<=4;i++){ document.getElementById('s'+i).classList.toggle('fill', i<=state.strikes); } }
-function render(){
-  elGame.innerHTML='';
-  for(const g of state.solved){ const block=document.createElement('div'); block.className='group'; const title=document.createElement('div'); title.className='title '+tierClass(g.tier); title.textContent=g.title; block.appendChild(title); g.words.forEach(w=>{ const c=document.createElement('div'); c.className='card locked'; c.textContent=w; block.appendChild(c); }); elGame.appendChild(block); }
-  if(state.solved.length===4){ elStatus.textContent='Perfect! You solved them all.'; awardPuzzleSolved(); loadNextPuzzle(); return; }
-  const grid=document.createElement('div'); grid.className='grid'; state.pool.forEach(word=>{ const btn=document.createElement('button'); btn.className='card'; btn.type='button'; btn.setAttribute('aria-pressed', state.selected.has(word)?'true':'false'); btn.textContent=word; btn.addEventListener('click', ()=>toggle(word)); grid.appendChild(btn); }); elGame.appendChild(grid);
-}
-function toggle(word){ const sel=state.selected; sel.has(word)?sel.delete(word):sel.add(word); if(sel.size>4){ sel.delete(sel.values().next().value); } if(sel.size===4){ setTimeout(check, 80);} else { updateStatus(); render(); } }
-async function check(){ if(state.selected.size!==4) return; const chosen=[...state.selected]; const title=state.current.wordToTitle.get(chosen[0]); const ok=chosen.every(w=>state.current.wordToTitle.get(w)===title); if(ok){ state.pool = state.pool.filter(w=>!state.selected.has(w)); const tierIdx = state.solved.length; const tier = state.current.tiers[tierIdx] || 'y'; state.solved.push({title, words:chosen.slice(), tier}); state.selected.clear(); toast('Correct!'); } else { state.strikes++; registerStrike(); toast('Nope — try another combo.'); if(state.strikes>=4){ revealAll(); return; } state.selected.clear(); } updateStatus(); render(); if(state.solved.length===4){ await finishGame(); } }
-function revealAll(){ const found=new Set(state.solved.map(s=>s.title)); for(const s of state.current.sets){ if(!found.has(s.title)){ state.solved.push({title:s.title, words:s.words.slice(), tier:s.tier}); }} state.pool=[]; state.selected.clear(); render(); elStatus.textContent='Out of strikes — puzzle revealed.'; }
-function shufflePool(){ const rnd=rngFromSeed(Math.floor(Math.random()*2**32)); state.pool=shuffleSeeded(state.pool, rnd); render(); }
-function clearSel(){ state.selected.clear(); updateStatus(); render(); }
-async function finishGame() {
-  const durationMs = Math.round(performance.now() - state.startedAt);
-  const score = computeScore(state.strikes);
-  const mode = state.daily ? 'daily' : 'random';
-
-  const res = await submitScore({ score, strikes: state.strikes, durationMs, mode });
+// ===== Start =====
+async function start(){
+  await initSupabase();
   await loadLeaderboards();
-
-  toast(res.where === 'cloud'
-    ? `Submitted (cloud): ${score} pts`
-    : `Saved locally: ${score} pts`);
+  if(elTodayNote) elTodayNote.textContent = '(UTC · arcade)';
+  openGate();
 }
-function newGame(){ state.strikes=0; state.selected.clear(); state.solved=[]; state.current=generatePuzzle(); state.pool=shuffleSeeded(state.current.words.slice(), rngFromSeed(Math.random()*1e9)); state.startedAt=performance.now(); updateStatus(); render(); toast('New puzzle'); }
 
-// ---- Boot -----------------------------------------------------------------
-(async function start(){ 
-  await initSupabase(); await loadLeaderboards(); startLiveUpdates(); state.daily=false; openGate(); })();
+// Wire non-module globals your HTML may call
+window.check = check;
+window.start = start;
+
+// Auto-start if desired
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', start);
+}else{
+  start();
+}
+
