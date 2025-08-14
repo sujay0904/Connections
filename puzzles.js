@@ -1442,5 +1442,230 @@ window.CONNECTIONS_PUZZLES = [
       { name: "Historic Inventions", color: "blue", words: ["TELEPHONE","LIGHT BULB","AIRPLANE","TELEVISION"] },
       { name: "Famous Movie Franchises", color: "purple", words: ["INDIANA JONES","PIRATES OF THE CARIBBEAN","FAST AND FURIOUS","MATRIX"] }
     ]
+  },
+  {
+    id: "2025-08-14-161",
+    categories: [
+      { name: "Fictional Detectives", color: "yellow", words: ["SHERLOCK HOLMES","HERCULE POIROT","MISS MARPLE","SAM SPADE"] },
+      { name: "Breakfast Foods", color: "green", words: ["PANCAKES","WAFFLES","OMELETTE","HASH BROWNS"] },
+      { name: "Greek Gods", color: "blue", words: ["ZEUS","HERA","POSEIDON","ATHENA"] },
+      { name: "Children's Book Authors", color: "purple", words: ["DR. SEUSS","ROALD DAHL","BEATRIX POTTER","E.B. WHITE"] }
+    ]
+  },
+  {
+    id: "2025-08-14-162",
+    categories: [
+      { name: "Kitchen Appliances", color: "yellow", words: ["KETTLE","DISHWASHER","SLOW COOKER","RICE COOKER"] },
+      { name: "Famous Rivers", color: "green", words: ["NILE","AMAZON","YANGTZE","MISSISSIPPI"] },
+      { name: "Things That Can Be Worn", color: "blue", words: ["HAT","GLOVES","COAT","SHOES"] },
+      { name: "Holidays", color: "purple", words: ["CHRISTMAS","HALLOWEEN","DIWALI","RAMADAN"] }
+    ]
+  },
+  {
+    id: "2025-08-14-163",
+    categories: [
+      { name: "Musical Notation Terms", color: "yellow", words: ["TREBLE","BASS","SHARP","FLAT"] },
+      { name: "US Presidents", color: "green", words: ["WASHINGTON","LINCOLN","KENNEDY","REAGAN"] },
+      { name: "Art Movements", color: "blue", words: ["IMPRESSIONISM","CUBISM","SURREALISM","BAROQUE"] },
+      { name: "Types of Hats", color: "purple", words: ["FEDORA","BERET","BEANIE","BOWLER"] }
+    ]
+  },
+  {
+    id: "2025-08-14-164",
+    categories: [
+      { name: "Famous Scientists", color: "yellow", words: ["EINSTEIN","NEWTON","CURIE","DARWIN"] },
+      { name: "Ocean Animals", color: "green", words: ["WHALE","SHARK","DOLPHIN","SEAL"] },
+      { name: "Things That Fly", color: "blue", words: ["PLANE","KITE","DRONE","ROCKET"] },
+      { name: "Types of Cheese", color: "purple", words: ["CHEDDAR","BRIE","FETA","GOUDA"] }
+    ]
+  },
+  {
+    id: "2025-08-14-165",
+    categories: [
+      { name: "Fictional Robots", color: "yellow", words: ["R2D2","C3PO","WALL-E","TERMINATOR"] },
+      { name: "Tree Fruits", color: "green", words: ["APPLE","PEAR","PEACH","PLUM"] },
+      { name: "Languages", color: "blue", words: ["MANDARIN","HINDI","ARABIC","RUSSIAN"] },
+      { name: "Clothing Fasteners", color: "purple", words: ["BUTTON","ZIPPER","SNAP","VELCRO"] }
+    ]
+  },
+  {
+    id: "2025-08-14-166",
+    categories: [
+      { name: "Famous Duos", color: "yellow", words: ["BATMAN AND ROBIN","BONNIE AND CLYDE","TOM AND JERRY","SIMON AND GARFUNKEL"] },
+      { name: "Countries in Europe", color: "green", words: ["FRANCE","GERMANY","ITALY","SPAIN"] },
+      { name: "Modes of Communication", color: "blue", words: ["EMAIL","TEXT","PHONE","LETTER"] },
+      { name: "Types of Cakes", color: "purple", words: ["RED VELVET","CARROT","BLACK FOREST","TIRAMISU"] }
+    ]
+  },
+  {
+    id: "2025-08-14-167",
+    categories: [
+      { name: "Movie Musicals", color: "yellow", words: ["GREASE","CHICAGO","WEST SIDE STORY","LES MISERABLES"] },
+      { name: "Green Vegetables", color: "green", words: ["BROCCOLI","KALE","SPINACH","PEAS"] },
+      { name: "Spices", color: "blue", words: ["CINNAMON","NUTMEG","GINGER","PEPPER"] },
+      { name: "Birds of Prey", color: "purple", words: ["EAGLE","HAWK","FALCON","VULTURE"] }
+    ]
+  },
+  {
+    id: "2025-08-14-168",
+    categories: [
+      { name: "Famous Philosophers", color: "yellow", words: ["PLATO","ARISTOTLE","SOCRATES","KANT"] },
+      { name: "Tropical Fruits", color: "green", words: ["MANGO","PAPAYA","PINEAPPLE","GUAVA"] },
+      { name: "Types of Bread", color: "blue", words: ["NAAN","PITA","BAGUETTE","CIABATTA"] },
+      { name: "Musical Instruments in an Orchestra", color: "purple", words: ["VIOLIN","CELLO","OBOE","BASSOON"] }
+    ]
+  },
+  {
+    id: "2025-08-14-169",
+    categories: [
+      { name: "Shakespearean Characters", color: "yellow", words: ["HAMLET","IAGO","PORTIA","FALSTAFF"] },
+      { name: "Seafood", color: "green", words: ["SHRIMP","OYSTERS","MUSSELS","CRAB"] },
+      { name: "Things in a Toolbox", color: "blue", words: ["HAMMER","NAILS","SCREWS","LEVEL"] },
+      { name: "Shades of Red", color: "purple", words: ["CRIMSON","SCARLET","BURGUNDY","MAROON"] }
+    ]
+  },
+  {
+    id: "2025-08-14-170",
+    categories: [
+      { name: "Sports Played with a Ball", color: "yellow", words: ["SOCCER","BASKETBALL","TENNIS","VOLLEYBALL"] },
+      { name: "Famous Novels", color: "green", words: ["1984","MOBY DICK","PRIDE AND PREJUDICE","THE GREAT GATSBY"] },
+      { name: "Modes of Water Transport", color: "blue", words: ["FERRY","KAYAK","CANOE","YACHT"] },
+      { name: "Synonyms for Happy", color: "purple", words: ["JOYFUL","CHEERFUL","ELATED","MERRY"] }
+    ]
+  },
+  {
+    id: "2025-08-14-171",
+    categories: [
+      { name: "Things Found in a Park", color: "yellow", words: ["BENCH","FOUNTAIN","PLAYGROUND","STATUE"] },
+      { name: "Reptiles", color: "green", words: ["SNAKE","LIZARD","TURTLE","CROCODILE"] },
+      { name: "Units of Time", color: "blue", words: ["SECOND","MINUTE","HOUR","DAY"] },
+      { name: "Shades of Green", color: "purple", words: ["SAGE","MOSS","MINT","FOREST"] }
+    ]
+  },
+  {
+    id: "2025-08-14-172",
+    categories: [
+      { name: "Famous Composers", color: "yellow", words: ["MOZART","BEETHOVEN","BACH","VIVALDI"] },
+      { name: "Types of Sandwiches", color: "green", words: ["BLT","REUBEN","CLUB","GRILLED CHEESE"] },
+      { name: "Desserts from Around the World", color: "blue", words: ["BAKLAVA","MOCHI","TRES LECHES","FLAN"] },
+      { name: "Carnivorous Animals", color: "purple", words: ["LION","TIGER","WOLF","HYENA"] }
+    ]
+  },
+  {
+    id: "2025-08-14-173",
+    categories: [
+      { name: "Parts of a Car", color: "yellow", words: ["ENGINE","BRAKE","HOOD","TRUNK"] },
+      { name: "Types of Chairs", color: "green", words: ["ARMCHAIR","ROCKING CHAIR","STOOL","RECLINER"] },
+      { name: "Jewellery Types", color: "blue", words: ["RING","NECKLACE","BRACELET","EARRINGS"] },
+      { name: "Things in a Bathroom", color: "purple", words: ["MIRROR","SINK","TOILET","SHOWER"] }
+    ]
+  },
+  {
+    id: "2025-08-14-174",
+    categories: [
+      { name: "Fictional Wizards", color: "yellow", words: ["GANDALF","DUMBLEDORE","MERLIN","SARUMAN"] },
+      { name: "Types of Currency Coins", color: "green", words: ["PENNY","NICKEL","DIME","QUARTER"] },
+      { name: "Birds That Swim", color: "blue", words: ["PENGUIN","DUCK","SWAN","LOON"] },
+      { name: "Types of Soup", color: "purple", words: ["MISO","RAMEN","CLAM CHOWDER","LENTIL"] }
+    ]
+  },
+  {
+    id: "2025-08-14-175",
+    categories: [
+      { name: "Musical Terms", color: "yellow", words: ["ALLEGRO","ADAGIO","CRESCENDO","STACCATO"] },
+      { name: "Car Models", color: "green", words: ["CIVIC","COROLLA","MUSTANG","ACCORD"] },
+      { name: "Things Found in the Sky", color: "blue", words: ["SUN","MOON","CLOUD","RAINBOW"] },
+      { name: "Famous TV Sitcoms", color: "purple", words: ["FRIENDS","SEINFELD","THE OFFICE","CHEERS"] }
+    ]
+  },
+  {
+    id: "2025-08-14-176",
+    categories: [
+      { name: "Kitchen Verbs", color: "yellow", words: ["CHOP","BAKE","STIR","KNEAD"] },
+      { name: "Clothing Patterns", color: "green", words: ["STRIPED","PLAID","FLORAL","POLKA DOT"] },
+      { name: "Instruments with Strings", color: "blue", words: ["GUITAR","VIOLIN","HARP","CELLO"] },
+      { name: "Countries Starting with 'C'", color: "purple", words: ["CANADA","CHINA","CHILE","COLOMBIA"] }
+    ]
+  },
+  {
+    id: "2025-08-14-177",
+    categories: [
+      { name: "Mammals", color: "yellow", words: ["ELEPHANT","KANGAROO","MOUSE","HORSE"] },
+      { name: "Berries", color: "green", words: ["STRAWBERRY","BLUEBERRY","RASPBERRY","BLACKBERRY"] },
+      { name: "Things with Handles", color: "blue", words: ["MUG","DOOR","SUITCASE","BUCKET"] },
+      { name: "Famous Battlefields", color: "purple", words: ["WATERLOO","HASTINGS","GETTYSBURG","STALINGRAD"] }
+    ]
+  },
+  {
+    id: "2025-08-14-178",
+    categories: [
+      { name: "Shades of Yellow", color: "yellow", words: ["GOLD","AMBER","LEMON","MUSTARD"] },
+      { name: "Types of Fish", color: "green", words: ["SALMON","TUNA","COD","TROUT"] },
+      { name: "Clothing Items", color: "blue", words: ["SHIRT","PANTS","JACKET","DRESS"] },
+      { name: "Things That Are Cold", color: "purple", words: ["ICE","SNOW","HAIL","FREEZER"] }
+    ]
+  },
+  {
+    id: "2025-08-14-179",
+    categories: [
+      { name: "Famous Opera Titles", color: "yellow", words: ["DON GIOVANNI","THE MAGIC FLUTE","TOSCA","AIDA"] },
+      { name: "Things Made of Glass", color: "green", words: ["WINDOW","BOTTLE","BEAKER","TEST TUBE"] },
+      { name: "Clothing Materials", color: "blue", words: ["COTTON","WOOL","SILK","LINEN"] },
+      { name: "Famous Olympic Sports", color: "purple", words: ["SWIMMING","GYMNASTICS","FENCING","CYCLING"] }
+    ]
+  },
+  {
+    id: "2025-08-14-180",
+    categories: [
+      { name: "Types of Nuts", color: "yellow", words: ["ALMOND","CASHEW","HAZELNUT","PISTACHIO"] },
+      { name: "Things Found at a Beach", color: "green", words: ["SAND","SHELL","WAVE","UMBRELLA"] },
+      { name: "Shades of Purple", color: "blue", words: ["LAVENDER","VIOLET","ORCHID","MAGENTA"] },
+      { name: "Historic Inventions", color: "purple", words: ["PRINTING PRESS","WHEEL","STEAM ENGINE","TELEPHONE"] }
+    ]
+  },
+  {
+    id: "2025-08-14-181",
+    categories: [
+      { name: "Types of Cookies", color: "yellow", words: ["CHOCOLATE CHIP","OATMEAL","GINGERBREAD","SHORTBREAD"] },
+      { name: "Things You Can Write With", color: "green", words: ["PEN","PENCIL","MARKER","CHALK"] },
+      { name: "Famous Movie Franchises", color: "blue", words: ["STAR WARS","HARRY POTTER","LORD OF THE RINGS","MARVEL"] },
+      { name: "Planets in Fiction", color: "purple", words: ["TATOOINE","VULCAN","KRYPTON","PANDORA"] }
+    ]
+  },
+  {
+    id: "2025-08-14-182",
+    categories: [
+      { name: "Things That Use Electricity", color: "yellow", words: ["COMPUTER","PHONE","MICROWAVE","FRIDGE"] },
+      { name: "Famous Wars", color: "green", words: ["WWI","WWII","COLD WAR","VIETNAM WAR"] },
+      { name: "Kitchen Containers", color: "blue", words: ["BOWL","POT","PAN","JAR"] },
+      { name: "Things Found in Space", color: "purple", words: ["STAR","PLANET","GALAXY","NEBULA"] }
+    ]
+  },
+  {
+    id: "2025-08-14-183",
+    categories: [
+      { name: "Famous Singers", color: "yellow", words: ["ADELE","BEYONCE","TAYLOR SWIFT","FRANK SINATRA"] },
+      { name: "Types of Alcohol", color: "green", words: ["BEER","WINE","VODKA","WHISKEY"] },
+      { name: "Things Found in a Park", color: "blue", words: ["TREE","FLOWER","PATH","POND"] },
+      { name: "Planets", color: "purple", words: ["JUPITER","SATURN","URANUS","NEPTUNE"] }
+    ]
+  },
+  {
+    id: "2025-08-14-184",
+    categories: [
+      { name: "Famous World Leaders", color: "yellow", words: ["CHURCHILL","MANDELA","GANDHI","NAPOLEON"] },
+      { name: "Things in a Garden", color: "green", words: ["BENCH","GAZEBO","BIRDBATH","FOUNTAIN"] },
+      { name: "Fictional Kings", color: "blue", words: ["ARTHUR","T'CHALLA","THEODEN","MUFASA"] },
+      { name: "Things That Are Hot", color: "purple", words: ["SUN","LAVA","OVEN","SAUNA"] }
+    ]
+  },
+  {
+    id: "2025-08-14-185",
+    categories: [
+      { name: "Famous Explorers", color: "yellow", words: ["MAGELLAN","COLUMBUS","MARCO POLO","DA GAMA"] },
+      { name: "Shapes with More than Four Sides", color: "green", words: ["PENTAGON","HEXAGON","HEPTAGON","OCTAGON"] },
+      { name: "Olympic Host Cities", color: "blue", words: ["ATHENS","LONDON","RIO","TOKYO"] },
+      { name: "Things You Can Eat Raw", color: "purple", words: ["CARROT","CUCUMBER","TOMATO","APPLE"] }
+    ]
   }
 ];
